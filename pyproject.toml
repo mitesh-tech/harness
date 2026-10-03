@@ -1,0 +1,36 @@
+[project]
+name = "harness"
+version = "0.0.1"
+description = "A model-agnostic AI harness for building backend APIs"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+dependencies = [
+  "typer>=0.12",   # the `harness` command and its sub-commands
+  "pydantic>=2.7", # validates the shape of YAML config files
+  "pyyaml>=6.0",   # reads YAML config files
+  "jinja2>=3.1",   # code generator templates
+]
+
+[project.scripts]
+harness = "harness.cli:app"
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
