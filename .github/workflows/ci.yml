@@ -28,3 +28,22 @@ jobs:
 
       - name: Test
         run: uv run pytest
+
+  bookstore:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/bookstore
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: examples/bookstore/uv.lock
+
+      - name: Install
+        run: uv sync --locked
+
+      - name: Test
+        run: uv run pytest
