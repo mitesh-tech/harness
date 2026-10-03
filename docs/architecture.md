@@ -11,4 +11,6 @@ The harness turns a task written in business language into verified backend code
 | **Verify** | The stack pack's test, lint and type commands run, plus scope and generated-code checksum checks, then SemIf yes/no checks per acceptance criterion. Failures retry with a stronger model; unsure results go to a human. |
 | **Learn** | An audit report records the path, models and gaps. Human-confirmed decisions are saved as eval cases. CI runs the evals with per-layer gates on every knowledge-base change, and a human reviews and merges. |
 
+The links between layers are resolved deterministically by the **resolver**: SemIf only reads the business facts, and fixed links, decision tables and rules derive the architecture and components. See [plan.md](plan.md#the-resolver).
+
 Colour key: coral = human and knowledge base, teal = SemIf, purple = LLM agents, pink = stack pack, grey = harness code.
