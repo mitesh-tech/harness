@@ -24,3 +24,6 @@ reports/
 .DS_Store
 .idea/
 .vscode/
+
+# Local databases
+*.db
