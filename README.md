@@ -49,7 +49,7 @@ uv run ruff check .
 
 ## Roadmap
 
-The first milestone is a small end-to-end example: a "Bookstore" API where the harness classifies tasks, resolves the design, generates endpoints, verifies them and writes a report. See [docs/plan.md](docs/plan.md) for the full plan.
+The first milestone is a small end-to-end example: a "Bookstore" API where the harness classifies tasks, resolves the design, generates endpoints, verifies them and writes a report. See [docs/example-plan.md](docs/example-plan.md) for its steps and progress, and [docs/plan.md](docs/plan.md) for the full plan.
 
 ## Contributing
 
