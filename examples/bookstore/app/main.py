@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401  (registers tables)
-from app.api import discover_routers
+from app.api import health
 from app.db import Base, database_url, make_engine
 
 
@@ -24,8 +24,8 @@ def create_app(url: str | None = None) -> FastAPI:
     application.state.sessionmaker = sessionmaker(
         bind=engine, autoflush=False, expire_on_commit=False
     )
-    for router in discover_routers():
-        application.include_router(router)
+
+    application.include_router(health.router)
     return application
 
 
