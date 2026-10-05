@@ -120,8 +120,8 @@ Every resolved value records its source; the audit report shows it.
 ## Repository layout
 
 ```
-harness/                          # PUBLIC (Apache-2.0)
-├── harness/
+harness/                          # PUBLIC (Apache-2.0) — the repository
+├── src/harness/                  # the Python package (src layout)
 │   ├── config/        # schemas, loaders, validator (KB, rules, models, flows, packs, tools, eval cases)
 │   ├── semif/         # client
 │   ├── classify/      # domain layer: capability or facts via SemIf
