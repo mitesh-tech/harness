@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=../../schemas/harness.schema.json
+# Links this project to the harness.
+version: 1
+pack: python-fastapi   # stack pack with templates and commands
+knowledge: .harness    # folder holding domain.yaml (and an optional technical.yaml override)

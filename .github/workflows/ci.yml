@@ -29,6 +29,9 @@ jobs:
       - name: Test
         run: uv run pytest
 
+      - name: Validate the Bookstore knowledge
+        run: uv run harness validate --project examples/bookstore
+
   bookstore:
     runs-on: ubuntu-latest
     defaults:

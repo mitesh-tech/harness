@@ -47,6 +47,28 @@ uv run pytest
 uv run ruff check .
 ```
 
+## Linking a project
+
+A project links to the harness with a `harness.yaml` at its root and keeps its knowledge in `.harness/`:
+
+```
+my-project/
+├── harness.yaml          # which stack pack, where the knowledge lives
+└── .harness/
+    ├── domain.yaml       # areas, entities, associations, services (business language)
+    └── technical.yaml    # optional: overrides the harness's general technical knowledge
+```
+
+Check a project's knowledge files:
+
+```bash
+uv run harness validate --project examples/bookstore
+```
+
+`validate` checks YAML syntax, the shape of each file, and that every name points at something that exists, and reports each problem with its file, line and field. See [examples/bookstore/.harness/domain.yaml](examples/bookstore/.harness/domain.yaml) for a complete example.
+
+For autocomplete and inline errors while editing, the files reference JSON Schemas in [schemas/](schemas/) (regenerate them with `uv run harness schema export`). Editors with YAML language support, such as VS Code with the YAML extension, pick them up automatically.
+
 ## Roadmap
 
 The first milestone is a small end-to-end example: a "Bookstore" API where the harness classifies tasks, resolves the design, generates endpoints, verifies them and writes a report. See [docs/plan.md](docs/plan.md) for the full plan.
