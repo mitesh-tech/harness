@@ -37,6 +37,7 @@ class Report:
     root: Path | None = None
     checked: list[Checked] = field(default_factory=list)
     problems: list[Problem] = field(default_factory=list)
+    settings: HarnessFile | None = None
     domain: Domain | None = None
     technical: Technical | None = None
     logic: str | None = None  # summary of layer 4, when it ran or was skipped
@@ -76,6 +77,7 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
     settings = _load(report, HarnessFile, project_file)
     if settings is None:
         return report
+    report.settings = settings
     report.checked[-1].summary = f"pack {settings.pack}, knowledge in {settings.knowledge}/"
     report.problems.append(
         Problem(
@@ -114,14 +116,17 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
         domain_file = _yaml_file(knowledge_dir / "domain.yaml")
         _attach(report, references.check_domain(domain, technical), {(): domain_file})
         if logic and report.ok:
-            _check_logic(report, domain, technical, domain_file, strict)
+            flow_file = technical_files.get(("classification",)) or technical_files[()]
+            _check_logic(report, domain, technical, domain_file, flow_file, strict)
     return report
 
 
 LOGIC_PATHS = {"service": "services", "entity": "entities", "association": "associations"}
 
 
-def _check_logic(report: Report, domain, technical, domain_file: YamlFile, strict: bool) -> None:
+def _check_logic(
+    report: Report, domain, technical, domain_file: YamlFile, flow_file: YamlFile, strict: bool
+) -> None:
     """Layer 4: load the knowledge into Prolog and ask the logic checks."""
     from harness.logic.engine import Engine, PrologUnavailable
 
@@ -136,8 +141,12 @@ def _check_logic(report: Report, domain, technical, domain_file: YamlFile, stric
         return
     problems = engine.problems()
     for problem in problems:
-        path = (LOGIC_PATHS[problem.where], problem.name)
-        report.problems.append(domain_file.problem(path, problem.message))
+        if problem.where == "flow":
+            path = ("classification", "steps", problem.name)
+            report.problems.append(flow_file.problem(path, problem.message))
+        else:
+            path = (LOGIC_PATHS[problem.where], problem.name)
+            report.problems.append(domain_file.problem(path, problem.message))
     count = len(problems)
     report.logic = "no problems" if not count else f"{count} problem{'s' * (count != 1)}"
 
@@ -189,6 +198,10 @@ def _load_technical(report: Report, override_path: Path):
             merged.rules.append(rule)
             merged_index = len(merged.rules) - 1
         origins[("rules", merged_index)] = _Shifted(override_file, merged_index, override_index)
+
+    if override.classification is not None:
+        merged.classification = override.classification
+        origins[("classification",)] = override_file
     return merged, origins
 
 
@@ -205,7 +218,7 @@ class _Shifted:
 
 def _attach(report: Report, findings, origins: dict) -> None:
     for path, message, severity in findings:
-        origin = origins.get(tuple(path[:2])) or origins[()]
+        origin = origins.get(tuple(path[:2])) or origins.get(tuple(path[:1])) or origins[()]
         report.problems.append(origin.problem(path, message, severity))
 
 

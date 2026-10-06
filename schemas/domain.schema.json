@@ -279,7 +279,7 @@
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
-          "maxItems": 20,
+          "maxItems": 15,
           "title": "Filters",
           "type": "array"
         },
@@ -335,7 +335,7 @@
   "additionalProperties": false,
   "properties": {
     "areas": {
-      "maxProperties": 20,
+      "maxProperties": 15,
       "minProperties": 1,
       "patternProperties": {
         "^[a-z][a-z0-9_]*$": {

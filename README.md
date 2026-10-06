@@ -80,6 +80,56 @@ Every derived decision carries the id of the rule that produced it, e.g. `C = pa
 
 For autocomplete and inline errors while editing, the files reference JSON Schemas in [schemas/](schemas/) (regenerate them with `uv run harness schema export`). Editors with YAML language support, such as VS Code with the YAML extension, pick them up automatically.
 
+## Running SemIf
+
+Classification uses [SemIf](https://github.com/TheoLeeCJ/SemIf-OpenJev), a small open decision model, through the HTTP server from [SemIf-server](https://github.com/someka-vrc/SemIf-server). Install it once, outside this repo (macOS, Apple Silicon):
+
+```bash
+git clone https://github.com/someka-vrc/SemIf-server ~/.harness/semif
+cd ~/.harness/semif && uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e '.[mlx]'
+```
+
+Start it (the first start downloads Qwen3.5-4B; it needs about 10 GB of memory while running, so close other memory-heavy apps):
+
+```bash
+~/.harness/semif/.venv/bin/semif-serve --model Qwen/Qwen3.5-4B \
+  --revision 851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a --backend mlx --port 8010
+```
+
+Check it from any project:
+
+```bash
+uv run harness semif check --project examples/bookstore
+```
+
+The server address, confidence threshold and timeout can be set in `harness.yaml`:
+
+```yaml
+semif:
+  url: http://localhost:8010/v1/systemone
+  threshold: 0.8
+  timeout: 30
+```
+
+## Classifying a task
+
+```bash
+uv run harness classify "Let staff add a new publisher" --project examples/bookstore
+```
+
+```
+  area         catalogue                1.00 ✓   (none 0.00 · community 0.00 · curation 0.00)
+  service      none                     0.88 ✓   (add_book 0.08 · list_books 0.02 · get_book 0.00)
+  kind         create                   1.00 ✓   (read_one 0.00 · none 0.00 · query 0.00)
+  entity       Publisher                0.99 ✓   (Book 0.01 · none 0.00)
+
+Outcome   NEW_SERVICE: catalogue › create › Publisher
+```
+
+SemIf answers one question at a time, choosing only among options from the knowledge base. The order of questions is configuration (`classification:` in [technical.yaml](src/harness/knowledge/technical.yaml)): area, then service; when no service fits, the kind of operation and the entity (or, for link/unlink, the association). Answers below the threshold stop with `UNSURE` so a person decides. Exit codes: `0` matched or new service, `2` needs a person, `1` error. Use `-v` to see exactly what SemIf reads, `--json` for machine-readable output.
+
+Tests replay real SemIf answers recorded in `tests/recordings/`, so they run without the server. Re-record after changing the knowledge base or the questions: `uv run pytest --record-semif` (with SemIf running).
+
 ## Roadmap
 
 The first milestone is a small end-to-end example: a "Bookstore" API where the harness classifies tasks, resolves the design, generates endpoints, verifies them and writes a report. See [docs/plan.md](docs/plan.md) for the full plan.

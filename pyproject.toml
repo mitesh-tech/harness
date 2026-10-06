@@ -10,6 +10,7 @@ dependencies = [
   "pydantic>=2.7", # validates the shape of YAML config files
   "pyyaml>=6.0",   # reads YAML config files
   "jinja2>=3.1",   # code generator templates
+  "httpx>=0.27",
 ]
 
 [project.scripts]

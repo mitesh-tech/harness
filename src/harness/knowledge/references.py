@@ -6,7 +6,7 @@ Each check yields (path, message, severity). The caller attaches the file and li
 from collections import Counter
 from collections.abc import Iterator
 
-from harness.knowledge.schema import MAX_OPTIONS, Domain, Technical
+from harness.knowledge.schema import KIND_TARGETS, MAX_OPTIONS, Domain, Technical
 
 Finding = tuple[tuple[str | int, ...], str, str]
 
@@ -193,15 +193,24 @@ def _area_of(domain: Domain, service) -> str | None:
 
 
 def _check_area_sizes(domain: Domain) -> Iterator[Finding]:
-    per_area = Counter(_area_of(domain, s) for s in domain.services.values())
-    for area, count in per_area.items():
-        if area in domain.areas and count > MAX_OPTIONS:
-            yield (
-                ("areas", area),
-                f"{count} services in this area (at most {MAX_OPTIONS}); split it so SemIf "
-                "chooses among fewer options",
-                "error",
-            )
+    """Each area's services, entities and aggregations become SemIf options; keep them few."""
+    aggregations = [a for a in domain.associations.values() if a.kind == "aggregation"]
+    counts = {
+        "services": Counter(_area_of(domain, s) for s in domain.services.values()),
+        "entities": Counter(e.area for e in domain.entities.values()),
+        "aggregations": Counter(
+            domain.entities[a.parent].area for a in aggregations if a.parent in domain.entities
+        ),
+    }
+    for what, per_area in counts.items():
+        for area, count in per_area.items():
+            if area in domain.areas and count > MAX_OPTIONS:
+                yield (
+                    ("areas", area),
+                    f"{count} {what} in this area (at most {MAX_OPTIONS}); split it so SemIf "
+                    "chooses among fewer options",
+                    "error",
+                )
 
 
 def check_technical(technical: Technical) -> Iterator[Finding]:
@@ -253,4 +262,52 @@ def check_technical(technical: Technical) -> Iterator[Finding]:
                     ("kinds", name),
                     f"'{name}' is easily confused with '{other}'; add a 'not' hint",
                     "warning",
+                )
+
+    yield from _check_flow(technical.classification)
+
+
+def _check_flow(flow) -> Iterator[Finding]:
+    """Names in the classification flow point at steps or outcomes.
+
+    Whether the flow can loop or stop halfway is checked in Prolog (checks.pl).
+    """
+    at = ("classification",)
+    targets = set(flow.steps) | set(flow.outcomes)
+    clash = set(flow.steps) & set(flow.outcomes)
+    for name in sorted(clash):
+        yield (at + ("outcomes",), f"'{name}' is both a step and an outcome", "error")
+    if flow.start not in flow.steps:
+        yield (
+            at + ("start",),
+            f"unknown step '{flow.start}' (steps: {_known(flow.steps)})",
+            "error",
+        )
+    if flow.low_confidence not in flow.outcomes:
+        yield (
+            at + ("low_confidence",),
+            f"'{flow.low_confidence}' is not an outcome (outcomes: {_known(flow.outcomes)})",
+            "error",
+        )
+    for name, step in flow.steps.items():
+        where = at + ("steps", name)
+        nexts = [("on_none", step.on_none)]
+        if isinstance(step.on_answer, str):
+            nexts.append(("on_answer", step.on_answer))
+        else:
+            missing = set(KIND_TARGETS) - set(step.on_answer.cases)
+            if missing:
+                yield (
+                    where + ("on_answer", "cases"),
+                    f"no case for kind target(s): {', '.join(sorted(missing))}",
+                    "error",
+                )
+            nexts += [("on_answer", target) for target in step.on_answer.cases.values()]
+        for field, target in nexts:
+            if target not in targets:
+                yield (
+                    where + (field,),
+                    f"'{target}' is neither a step nor an outcome "
+                    f"(steps: {_known(flow.steps)}; outcomes: {_known(flow.outcomes)})",
+                    "error",
                 )

@@ -17,8 +17,12 @@ app = typer.Typer(
 )
 schema_app = typer.Typer(help="Work with the schemas of the knowledge files.", no_args_is_help=True)
 kb_app = typer.Typer(help="Work with a project's knowledge as Prolog.", no_args_is_help=True)
+semif_app = typer.Typer(help="Work with the decision model (SemIf).", no_args_is_help=True)
 app.add_typer(schema_app, name="schema")
 app.add_typer(kb_app, name="kb")
+app.add_typer(semif_app, name="semif")
+
+EXIT_CODES = {"matched": 0, "new_service": 0, "unsure": 2, "no_entity": 2}
 
 ProjectOption = Annotated[
     Path,
@@ -129,6 +133,104 @@ def kb_query(
         typer.echo("   ".join(f"{name} = {value}" for name, value in sorted(answer.items())))
     more = f" (showing the first {MAX_ANSWERS})" if len(answers) > MAX_ANSWERS else ""
     typer.echo(f"{len(answers)} answer{'s' * (len(answers) != 1)}{more}")
+
+
+@app.command()
+def classify(
+    task: Annotated[str, typer.Argument(help="The task, in business language.")],
+    project: ProjectOption = Path("."),
+    verbose: Annotated[
+        bool, typer.Option("--verbose", "-v", help="Also show what SemIf reads for each option.")
+    ] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
+) -> None:
+    """Ask SemIf which area and service a task belongs to (or which kind and entity)."""
+    from harness.classify.questions import OPTION_SOURCES
+    from harness.classify.walk import classify as run_classification
+    from harness.semif.client import NONE_OPTION, DecisionModelError
+
+    report = _valid_knowledge(project)
+    settings = report.settings.semif
+    try:
+        result = run_classification(
+            task, report.domain, report.technical, make_model(report), settings.threshold
+        )
+    except DecisionModelError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    if as_json:
+        typer.echo(json.dumps(result.to_dict(), indent=2))
+        raise typer.Exit(EXIT_CODES.get(result.outcome, 2))
+
+    typer.echo(f"Task      {task}")
+    typer.echo(f"SemIf     {settings.url}, threshold {settings.threshold:g}")
+    typer.echo("")
+    answers: dict[str, str] = {}
+    for step in result.steps:
+        mark = "✓" if step.accepted else "✗"
+        others = sorted(
+            ((p, name) for name, p in step.probabilities.items() if name != step.answer),
+            reverse=True,
+        )[:3]
+        rest = " · ".join(f"{name} {p:.2f}" for p, name in others)
+        typer.echo(f"  {step.id:<12} {step.answer:<24} {step.confidence:.2f} {mark}   ({rest})")
+        if verbose:
+            spec = report.technical.classification.steps[step.id]
+            options = OPTION_SOURCES[spec.options](report.domain, report.technical, answers)
+            typer.echo(f"      question: {step.question}")
+            for option in (*options, NONE_OPTION):
+                typer.echo(f"      - {option.name}: {option.text()}")
+        if step.accepted:
+            answers[step.id] = step.answer
+
+    typer.echo("")
+    found = " › ".join(f"{v}" for v in result.answers.values())
+    typer.echo(f"Outcome   {result.outcome.upper()}" + (f": {found}" if found else ""))
+    last = result.steps[-1] if result.steps else None
+    if result.outcome == "unsure" and last and last.accepted:
+        hint = (
+            f"The task doesn't fit any {last.id} in the knowledge base; a person needs to decide."
+        )
+    elif result.outcome == "unsure" and last:
+        hint = (
+            f"SemIf is not sure enough about the {last.id} "
+            f"({last.confidence:.2f} < {settings.threshold:g}); a person needs to decide."
+        )
+    else:
+        hint = {
+            "new_service": "No existing service fits; a new one can be designed from these facts.",
+            "no_entity": "Nothing in the knowledge base fits; a new entity or connection "
+            "is needed.",
+        }.get(result.outcome)
+    if hint:
+        typer.echo(f"          {hint}")
+    raise typer.Exit(EXIT_CODES.get(result.outcome, 2))
+
+
+@semif_app.command("check")
+def semif_check(project: ProjectOption = Path(".")) -> None:
+    """Check that SemIf is running and answering."""
+    from harness.semif.client import DecisionModelError
+
+    report = _valid_knowledge(project)
+    model = make_model(report)
+    try:
+        status, seconds = model.health()
+    except DecisionModelError as exc:
+        typer.echo(f"✗ {exc}", err=True)
+        raise typer.Exit(1) from exc
+    details = status.get("model") or {}
+    name = details.get("source") or details.get("model") or "unknown model"
+    typer.echo(f"✓ SemIf reachable at {model.url} ({name}); a test question took {seconds:.1f}s")
+
+
+def make_model(report: Report):
+    """The decision model for a project. Tests replace this with a replaying model."""
+    from harness.semif.http import SemIfHttp
+
+    settings = report.settings.semif
+    return SemIfHttp(settings.url, settings.timeout)
 
 
 def _valid_knowledge(project: Path) -> Report:
