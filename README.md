@@ -31,7 +31,7 @@ A task written in plain business language goes through four stages:
 
 ## Getting started
 
-Requires [uv](https://docs.astral.sh/uv/).
+Requires [uv](https://docs.astral.sh/uv/) and, for the logic checks, [SWI-Prolog](https://www.swi-prolog.org/) (macOS: `brew install swi-prolog`).
 
 ```bash
 git clone https://github.com/mitesh-tech/harness.git
@@ -65,7 +65,18 @@ Check a project's knowledge files:
 uv run harness validate --project examples/bookstore
 ```
 
-`validate` checks YAML syntax, the shape of each file, and that every name points at something that exists, and reports each problem with its file, line and field. See [examples/bookstore/.harness/domain.yaml](examples/bookstore/.harness/domain.yaml) for a complete example.
+`validate` checks in four layers: YAML syntax, the shape of each file, that every name points at something that exists, and finally **logic**: the knowledge is compiled to Prolog and checked for problems such as a composition child created outside its parent, a composition cycle, or rules that disagree. Each problem is reported with its file, line and field. See [examples/bookstore/.harness/domain.yaml](examples/bookstore/.harness/domain.yaml) for a complete example.
+
+Without SWI-Prolog the logic layer is skipped with a warning; `--strict` (used in CI) makes that an error.
+
+Explore the knowledge as Prolog:
+
+```bash
+uv run harness kb query "component(add_review, C, Rule)" --project examples/bookstore
+uv run harness kb export --project examples/bookstore --out kb.pl && swipl kb.pl
+```
+
+Every derived decision carries the id of the rule that produced it, e.g. `C = parent_exists_check   Rule = composition-nested`.
 
 For autocomplete and inline errors while editing, the files reference JSON Schemas in [schemas/](schemas/) (regenerate them with `uv run harness schema export`). Editors with YAML language support, such as VS Code with the YAML extension, pick them up automatically.
 

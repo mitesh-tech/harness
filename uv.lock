@@ -40,22 +40,31 @@ dependencies = [
     { name = "typer" },
 ]
 
+[package.optional-dependencies]
+prolog = [
+    { name = "janus-swi" },
+]
+
 [package.dev-dependencies]
 dev = [
+    { name = "janus-swi" },
     { name = "pytest" },
     { name = "ruff" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "janus-swi", marker = "extra == 'prolog'", specifier = ">=1.5" },
     { name = "jinja2", specifier = ">=3.1" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "typer", specifier = ">=0.12" },
 ]
+provides-extras = ["prolog"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "janus-swi", specifier = ">=1.5" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
 ]
@@ -67,6 +76,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
+]
+
+[[package]]
+name = "janus-swi"
+version = "1.5.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/84/4145112cc4e07a4b1e7ec6806cba1a1ca9bf8f68ea8df693c4ff0e0d70d8/janus_swi-1.5.3.tar.gz", hash = "sha256:2ce9867bb1e0cbab7737c8e2a7af3268f2241251e5b0eb955726c829ae995f8d", size = 90117, upload-time = "2026-06-24T08:32:36.26Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/6f/c9924737b5be6a7e634576a7712f4cf2af666b14edb9206093114ebf9423/janus_swi-1.5.3-cp314-cp314-win_amd64.whl", hash = "sha256:29ab9a7afb9fb523fea12c19fb01115c9b1be8e21a40bddd3629c78abdf91dbb", size = 77816, upload-time = "2026-06-24T08:53:11.893Z" },
 ]
 
 [[package]]

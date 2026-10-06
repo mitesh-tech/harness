@@ -14,6 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install SWI-Prolog
+        run: |
+          sudo apt-add-repository -y ppa:swi-prolog/stable
+          sudo apt-get update
+          sudo apt-get install -y swi-prolog-nox
+
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -30,7 +36,7 @@ jobs:
         run: uv run pytest
 
       - name: Validate the Bookstore knowledge
-        run: uv run harness validate --project examples/bookstore
+        run: uv run harness validate --strict --project examples/bookstore
 
   bookstore:
     runs-on: ubuntu-latest
