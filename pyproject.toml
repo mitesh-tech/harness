@@ -15,8 +15,14 @@ dependencies = [
 [project.scripts]
 harness = "harness.cli:app"
 
+[project.optional-dependencies]
+prolog = [
+    "janus-swi>=1.5",
+]
+
 [dependency-groups]
 dev = [
+  "janus-swi>=1.5",
   "pytest>=8",
   "ruff>=0.6",
 ]

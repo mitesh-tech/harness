@@ -1,5 +1,8 @@
 """Load a project's knowledge in layers and check it.
 
+Checks run in four layers, each only when the earlier ones pass:
+    1. YAML syntax   2. shape (schemas)   3. references   4. logic (Prolog)
+
 Layers of technical knowledge, later ones replacing earlier entries:
     harness default (ships with the harness) -> stack pack (not yet) -> project override
 """
@@ -36,6 +39,7 @@ class Report:
     problems: list[Problem] = field(default_factory=list)
     domain: Domain | None = None
     technical: Technical | None = None
+    logic: str | None = None  # summary of layer 4, when it ran or was skipped
 
     @property
     def errors(self) -> list[Problem]:
@@ -50,7 +54,12 @@ class Report:
         return not self.errors
 
 
-def validate_project(start: Path) -> Report:
+def validate_project(start: Path, strict: bool = False, logic: bool = True) -> Report:
+    """Check a project's knowledge.
+
+    strict: skipped logic checks (no Prolog) count as an error.
+    logic:  run layer 4; turn off when only layers 1-3 are needed.
+    """
     report = Report()
     project_file = find_project_file(start)
     if project_file is None:
@@ -102,12 +111,35 @@ def validate_project(start: Path) -> Report:
     if technical is not None:
         _attach(report, references.check_technical(technical), technical_files)
     if domain is not None and technical is not None:
-        _attach(
-            report,
-            references.check_domain(domain, technical),
-            {(): _yaml_file(knowledge_dir / "domain.yaml")},
-        )
+        domain_file = _yaml_file(knowledge_dir / "domain.yaml")
+        _attach(report, references.check_domain(domain, technical), {(): domain_file})
+        if logic and report.ok:
+            _check_logic(report, domain, technical, domain_file, strict)
     return report
+
+
+LOGIC_PATHS = {"service": "services", "entity": "entities", "association": "associations"}
+
+
+def _check_logic(report: Report, domain, technical, domain_file: YamlFile, strict: bool) -> None:
+    """Layer 4: load the knowledge into Prolog and ask the logic checks."""
+    from harness.logic.engine import Engine, PrologUnavailable
+
+    try:
+        engine = Engine(domain, technical)
+    except PrologUnavailable as exc:
+        report.logic = "skipped"
+        severity = "error" if strict else "warning"
+        report.problems.append(
+            Problem(domain_file.path, (), f"logic checks skipped: {exc}", None, severity)
+        )
+        return
+    problems = engine.problems()
+    for problem in problems:
+        path = (LOGIC_PATHS[problem.where], problem.name)
+        report.problems.append(domain_file.problem(path, problem.message))
+    count = len(problems)
+    report.logic = "no problems" if not count else f"{count} problem{'s' * (count != 1)}"
 
 
 def _load(report: Report, model, path: Path):
