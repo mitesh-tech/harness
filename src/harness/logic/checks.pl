@@ -15,6 +15,11 @@
 composed_in(Parent, Child) :- association(_, composition, Parent, Child, _).
 composed_in(Parent, Child) :- association(_, composition, Parent, X, _), composed_in(X, Child).
 
+% A step of the classification flow can (directly or eventually) lead to another.
+:- table flow_reaches/2.
+flow_reaches(A, B) :- flow_edge(A, B).
+flow_reaches(A, B) :- flow_edge(A, X), flow_reaches(X, B).
+
 % Decisions that can have only one value per service.
 single_valued(error_status).
 single_valued(persistence_target).
@@ -44,3 +49,17 @@ problem(service, S, conflicting_decisions, [Decision, A, RuleA, B, RuleB]) :-
     Goal1 =.. [Decision, S, A, RuleA], call(Goal1),
     Goal2 =.. [Decision, S, B, RuleB], call(Goal2),
     A @< B.
+
+% The classification flow must not go round in circles…
+problem(flow, S, flow_cycle, []) :-
+    flow_step(S), flow_reaches(S, S).
+
+% …every step must be reachable from the start…
+problem(flow, S, flow_unreachable, []) :-
+    flow_step(S), \+ flow_start(S),
+    \+ ( flow_start(Start), flow_reaches(Start, S) ).
+
+% …and every step must be able to finish with an outcome.
+problem(flow, S, flow_dead_end, []) :-
+    flow_step(S),
+    \+ ( flow_outcome(O), flow_reaches(S, O) ).

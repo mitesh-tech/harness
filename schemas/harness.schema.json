@@ -1,4 +1,33 @@
 {
+  "$defs": {
+    "SemIfSettings": {
+      "additionalProperties": false,
+      "description": "Where the decision model runs and how sure it must be.",
+      "properties": {
+        "url": {
+          "default": "http://localhost:8010/v1/systemone",
+          "pattern": "^https?://\\S+$",
+          "title": "Url",
+          "type": "string"
+        },
+        "threshold": {
+          "default": 0.8,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Threshold",
+          "type": "number"
+        },
+        "timeout": {
+          "default": 30,
+          "exclusiveMinimum": 0,
+          "title": "Timeout",
+          "type": "number"
+        }
+      },
+      "title": "SemIfSettings",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "description": "The link between a project and the harness.",
   "properties": {
@@ -17,6 +46,9 @@
       "minLength": 1,
       "title": "Knowledge",
       "type": "string"
+    },
+    "semif": {
+      "$ref": "#/$defs/SemIfSettings"
     }
   },
   "required": [

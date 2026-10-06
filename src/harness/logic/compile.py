@@ -44,6 +44,10 @@ FACTS = [
     "component_known/1",
     "askable/1",
     "fact/2",
+    "flow_start/1",
+    "flow_step/1",
+    "flow_outcome/1",
+    "flow_edge/2",
 ]
 DECISIONS = [
     "component/3",
@@ -184,6 +188,21 @@ def _technical_facts(p: Program, technical: Technical) -> None:
         p.add("component_known/1", f"component_known({atom(name)}).")
     for name in technical.askable:
         p.add("askable/1", f"askable({atom(name)}).")
+
+    flow = technical.classification
+    p.add("flow_start/1", f"flow_start({atom(flow.start)}).")
+    for outcome in flow.outcomes:
+        p.add("flow_outcome/1", f"flow_outcome({atom(outcome)}).")
+    for name, step in flow.steps.items():
+        s = atom(name)
+        p.add("flow_step/1", f"flow_step({s}).")
+        answers = (
+            [step.on_answer]
+            if isinstance(step.on_answer, str)
+            else list(step.on_answer.cases.values())
+        )
+        for target in dict.fromkeys([*answers, step.on_none, flow.low_confidence]):
+            p.add("flow_edge/2", f"flow_edge({s}, {atom(target)}).")
 
 
 def _bridge_rules(p: Program, technical: Technical) -> None:

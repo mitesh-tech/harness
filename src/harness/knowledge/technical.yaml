@@ -214,6 +214,44 @@ rules:
     when: { fact: cached }
     then: { components: [read_cache] }
 
+# ── Classification: the questions SemIf answers about a task ────────
+# Each step asks one question; its options come from the knowledge base
+# (`options` names where). An answer leads to `on_answer`, "none" to
+# `on_none`, and any answer below the confidence threshold to
+# `low_confidence`. A step name or an outcome can follow.
+classification:
+  start: area
+  low_confidence: unsure
+  outcomes: [matched, new_service, unsure, no_entity]
+  steps:
+    area:
+      question: "Which area of the business does this task belong to?"
+      options: areas
+      on_answer: service
+      on_none: unsure
+    service:
+      question: "Which existing service does this task describe?"
+      options: services_in_area
+      on_answer: matched
+      on_none: kind
+    kind:
+      question: "What kind of operation is this task?"
+      options: kinds
+      on_answer:
+        by: kind_target
+        cases: { entity: entity, association: association }
+      on_none: unsure
+    entity:
+      question: "Which thing does this task act on?"
+      options: entities_in_area
+      on_answer: new_service
+      on_none: no_entity
+    association:
+      question: "Which connection between things does this task change?"
+      options: aggregations_in_area
+      on_answer: new_service
+      on_none: no_entity
+
 # ── Askable facts: yes/no questions SemIf may be asked ──────────────
 askable:
   requires_login: "Does this task require the user to be logged in?"

@@ -18,7 +18,8 @@ from pydantic import (
     model_validator,
 )
 
-MAX_OPTIONS = 20  # SemIf chooses well among a small number of options
+# SemIf answers at most 16 options per question; one is always "none".
+MAX_OPTIONS = 15
 
 SnakeName = Annotated[str, StringConstraints(strict=True, pattern=r"^[a-z][a-z0-9_]*$")]
 EntityName = Annotated[str, StringConstraints(strict=True, pattern=r"^[A-Z][A-Za-z0-9]*$")]
@@ -42,12 +43,23 @@ class Model(BaseModel):
 # ── harness.yaml ────────────────────────────────────────────────────
 
 
+class SemIfSettings(Model):
+    """Where the decision model runs and how sure it must be."""
+
+    url: Annotated[str, StringConstraints(strict=True, pattern=r"^https?://\S+$")] = (
+        "http://localhost:8010/v1/systemone"
+    )
+    threshold: float = Field(default=0.8, ge=0, le=1)
+    timeout: float = Field(default=30, gt=0)
+
+
 class HarnessFile(Model):
     """The link between a project and the harness."""
 
     version: Literal[1]
     pack: KebabName
     knowledge: Text = ".harness"
+    semif: SemIfSettings = Field(default_factory=SemIfSettings)
 
 
 # ── domain.yaml ─────────────────────────────────────────────────────
@@ -226,11 +238,41 @@ class Rule(Model):
     then: Outcome
 
 
+OptionSource = Literal[
+    "areas", "services_in_area", "kinds", "entities_in_area", "aggregations_in_area"
+]
+KIND_TARGETS = ("entity", "association")
+
+
+class Branch(Model):
+    """Choose the next step from a property of the answer, e.g. the chosen kind's target."""
+
+    by: Literal["kind_target"]
+    cases: dict[SnakeName, SnakeName] = Field(min_length=1)
+
+
+class FlowStep(Model):
+    question: Text
+    options: OptionSource
+    on_answer: SnakeName | Branch
+    on_none: SnakeName
+
+
+class ClassificationFlow(Model):
+    """The questions SemIf answers about a task, as a small flow of steps."""
+
+    start: SnakeName
+    low_confidence: SnakeName
+    outcomes: list[SnakeName] = Field(min_length=1)
+    steps: dict[SnakeName, FlowStep] = Field(min_length=1)
+
+
 class Technical(Model):
     kinds: dict[SnakeName, Kind] = Field(min_length=1, max_length=MAX_OPTIONS)
     components: dict[SnakeName, Component] = Field(min_length=1)
     rules: list[Rule] = Field(min_length=1)
     askable: dict[SnakeName, Text] = Field(default_factory=dict)
+    classification: ClassificationFlow
 
 
 class TechnicalOverride(Model):
@@ -240,6 +282,7 @@ class TechnicalOverride(Model):
     components: dict[SnakeName, Component] = Field(default_factory=dict)
     rules: list[Rule] = Field(default_factory=list)
     askable: dict[SnakeName, Text] = Field(default_factory=dict)
+    classification: ClassificationFlow | None = None  # replaces the whole flow
 
 
 SCHEMAS: dict[str, type[Model]] = {

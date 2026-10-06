@@ -1,0 +1,31 @@
+# Bookstore tasks used to record and test classification.
+# `expect` is what we believe SemIf should conclude. If the live model
+# disagrees when recording, we look at why (usually the KB descriptions)
+# rather than quietly changing the expectation.
+
+- task: "Add a new book"
+  expect: { outcome: matched, area: catalogue, service: add_book }
+
+- task: "Show all books by an author"
+  expect: { outcome: matched, area: catalogue, service: list_books }
+
+- task: "Readers should be able to rate a book from 1 to 5"
+  expect: { outcome: matched, area: community, service: add_review }
+
+- task: "Put Dune into the Summer reads collection"
+  expect: { outcome: matched, area: curation, service: add_book_to_collection }
+
+- task: "Let staff add a new publisher"
+  expect: { outcome: new_service, area: catalogue, kind: create, entity: Publisher }
+
+# Ambiguous: "featured" could be a field on Book or a curated list. The live
+# model leaned towards curation and a link, below the threshold, so the
+# harness stops and asks a person. That is the behaviour we want here.
+- task: "Let staff mark a book as featured on the homepage"
+  expect: { outcome: unsure }
+
+- task: "Let customers save books to a personal wishlist"
+  expect: { outcome: [new_service, no_entity, unsure] }
+
+- task: "Manage shipping addresses for orders"
+  expect: { outcome: [unsure, no_entity] }

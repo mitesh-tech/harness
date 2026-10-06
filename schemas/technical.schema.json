@@ -1,5 +1,76 @@
 {
   "$defs": {
+    "Branch": {
+      "additionalProperties": false,
+      "description": "Choose the next step from a property of the answer, e.g. the chosen kind's target.",
+      "properties": {
+        "by": {
+          "const": "kind_target",
+          "title": "By",
+          "type": "string"
+        },
+        "cases": {
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            }
+          },
+          "title": "Cases",
+          "type": "object"
+        }
+      },
+      "required": [
+        "by",
+        "cases"
+      ],
+      "title": "Branch",
+      "type": "object"
+    },
+    "ClassificationFlow": {
+      "additionalProperties": false,
+      "description": "The questions SemIf answers about a task, as a small flow of steps.",
+      "properties": {
+        "start": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Start",
+          "type": "string"
+        },
+        "low_confidence": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Low Confidence",
+          "type": "string"
+        },
+        "outcomes": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "steps": {
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "$ref": "#/$defs/FlowStep"
+            }
+          },
+          "title": "Steps",
+          "type": "object"
+        }
+      },
+      "required": [
+        "start",
+        "low_confidence",
+        "outcomes",
+        "steps"
+      ],
+      "title": "ClassificationFlow",
+      "type": "object"
+    },
     "Component": {
       "additionalProperties": false,
       "properties": {
@@ -110,6 +181,52 @@
         }
       },
       "title": "Condition",
+      "type": "object"
+    },
+    "FlowStep": {
+      "additionalProperties": false,
+      "properties": {
+        "question": {
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "options": {
+          "enum": [
+            "areas",
+            "services_in_area",
+            "kinds",
+            "entities_in_area",
+            "aggregations_in_area"
+          ],
+          "title": "Options",
+          "type": "string"
+        },
+        "on_answer": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Branch"
+            }
+          ],
+          "title": "On Answer"
+        },
+        "on_none": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "On None",
+          "type": "string"
+        }
+      },
+      "required": [
+        "question",
+        "options",
+        "on_answer",
+        "on_none"
+      ],
+      "title": "FlowStep",
       "type": "object"
     },
     "Kind": {
@@ -330,7 +447,7 @@
   "additionalProperties": false,
   "properties": {
     "kinds": {
-      "maxProperties": 20,
+      "maxProperties": 15,
       "minProperties": 1,
       "patternProperties": {
         "^[a-z][a-z0-9_]*$": {
@@ -367,12 +484,16 @@
       },
       "title": "Askable",
       "type": "object"
+    },
+    "classification": {
+      "$ref": "#/$defs/ClassificationFlow"
     }
   },
   "required": [
     "kinds",
     "components",
-    "rules"
+    "rules",
+    "classification"
   ],
   "title": "Technical",
   "type": "object"

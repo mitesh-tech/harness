@@ -1,0 +1,781 @@
+{
+  "exchanges": {
+    "0f237f2a9f8215e2": {
+      "request": {
+        "state": "Readers should be able to rate a book from 1 to 5",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "community",
+            "probabilities": {
+              "catalogue": 0.0008039583959568124,
+              "community": 0.9990374271242074,
+              "curation": 0.00012329101315665885,
+              "none": 3.532346667913556e-05
+            },
+            "confidence": 0.9987165694989432
+          }
+        },
+        "usage": {
+          "input_tokens": 186,
+          "output_tokens": 0
+        }
+      }
+    },
+    "2794f9bcf436bd20": {
+      "request": "/health",
+      "status": 200,
+      "response": {
+        "status": "ok",
+        "model": {
+          "source": "Qwen/Qwen3.5-4B",
+          "revision": "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+          "backend": "mlx",
+          "mlx_version": "0.32.2",
+          "mlx_lm_version": "0.32.0",
+          "transformers_version": "5.17.0",
+          "mlx_lm_source": {
+            "url": "https://github.com/ml-explore/mlx-lm.git",
+            "vcs_info": {
+              "vcs": "git",
+              "commit_id": "a63e24c389382619eb6d9af656e3b46024be217a",
+              "requested_revision": "a63e24c389382619eb6d9af656e3b46024be217a"
+            }
+          },
+          "allocator_cache_limit_bytes": 268435456,
+          "dtype": [
+            "mlx.core.bfloat16",
+            "mlx.core.float32"
+          ],
+          "quantization": null,
+          "source_artifact_sha256": {
+            "chat_template.jinja": "a4aee8afcf2e0711942cf848899be66016f8d14a889ff9ede07bca099c28f715",
+            "config.json": "ddc63e1c717afa86c865bb5e01313d89d72bb53b97ad4a8a03ba8510c0621670",
+            "merges.txt": "a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d",
+            "model.safetensors-00001-of-00002.safetensors": "26a93f066e1916adb13453dae5a0c707c0fbc71299ed98779571a907b8e74c61",
+            "model.safetensors-00002-of-00002.safetensors": "cb544bd9bfae93dc59b0f22b292f5933573854a7f9b97835c67060d7d910e188",
+            "model.safetensors.index.json": "cf3f798ee02ba45f9622aa8892a47369ab667d0afbf154ee7c2212de42e6302d",
+            "preprocessor_config.json": "27225450ac9c6529872ee1924fcb0962ff5634834f817040f444118116f4e516",
+            "tokenizer.json": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+            "tokenizer_config.json": "316230d6a809701f4db5ea8f8fc862bc3a6f3229c937c174e674ff3ca0a64ac8",
+            "video_preprocessor_config.json": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
+            "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
+          }
+        }
+      }
+    },
+    "2db2653df3dcc9a7": {
+      "request": {
+        "state": "Let staff add a new publisher",
+        "model": "semif",
+        "questions": {
+          "entity": {
+            "type": "choice",
+            "instructions": "Which thing does this task act on?",
+            "criteria": {
+              "Book": "A book for sale in the store",
+              "Publisher": "A company that publishes books",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "entity": {
+            "type": "choice",
+            "choice": "Publisher",
+            "probabilities": {
+              "Book": 0.006688132972845113,
+              "Publisher": 0.9926069429980503,
+              "none": 0.0007049240291045113
+            },
+            "confidence": 0.9889104144970755
+          }
+        },
+        "usage": {
+          "input_tokens": 134,
+          "output_tokens": 0
+        }
+      }
+    },
+    "36452d89676b7d20": {
+      "request": {
+        "state": "Let staff add a new publisher",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "catalogue",
+            "probabilities": {
+              "catalogue": 0.9988789520059518,
+              "community": 0.00043025965751462397,
+              "curation": 0.00020324027120371252,
+              "none": 0.0004875480653297586
+            },
+            "confidence": 0.998505269341269
+          }
+        },
+        "usage": {
+          "input_tokens": 177,
+          "output_tokens": 0
+        }
+      }
+    },
+    "43b1736d12daf345": {
+      "request": {
+        "state": "Let staff mark a book as featured on the homepage",
+        "model": "semif",
+        "questions": {
+          "kind": {
+            "type": "choice",
+            "instructions": "What kind of operation is this task?",
+            "criteria": {
+              "create": "Make something new Examples: add; create; register; submit; rate. Not for changing something that already exists (use update), or for putting an existing thing into a group (use link)",
+              "read_one": "Look at one specific thing Examples: view; show; open; get details of.",
+              "query": "Find or list several things Examples: list; search; show all; browse; filter.",
+              "update": "Change some details of something that exists Examples: edit; change; correct; set the price. Not for replacing all details (use replace), and not for moving through a lifecycle (use transition)",
+              "replace": "Replace all the details of something that exists Examples: replace; overwrite; re-enter all details of; save the full record of. Not for changing just a few details (use update), and not for moving through a lifecycle (use transition)",
+              "transition": "Move something to another stage of its life Examples: archive; approve; cancel; publish; restore. Not for editing ordinary details (use update)",
+              "delete": "Remove something Examples: delete; remove; discard. Not for taking a thing out of a group (use unlink)",
+              "link": "Connect two existing things, like putting a book into a list Examples: add to; include in; attach to; set the. Not for creating the thing itself (use create)",
+              "unlink": "Disconnect two things, like taking a book out of a list Examples: remove from; take out of; detach from. Not for deleting the thing itself (use delete)",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "kind": {
+            "type": "choice",
+            "choice": "link",
+            "probabilities": {
+              "create": 0.2383088540045799,
+              "read_one": 0.011864699206993325,
+              "query": 0.0018195105535135105,
+              "update": 0.0007584848441640027,
+              "replace": 0.0004600443129128265,
+              "transition": 0.003851903872015039,
+              "delete": 0.00027903098060806186,
+              "link": 0.7340429473512542,
+              "unlink": 0.0004600443129128265,
+              "none": 0.008154480561046262
+            },
+            "confidence": 0.7044921637236157
+          }
+        },
+        "usage": {
+          "input_tokens": 501,
+          "output_tokens": 0
+        }
+      }
+    },
+    "4996967e94ca2840": {
+      "request": {
+        "state": "Let staff add a new publisher",
+        "model": "semif",
+        "questions": {
+          "kind": {
+            "type": "choice",
+            "instructions": "What kind of operation is this task?",
+            "criteria": {
+              "create": "Make something new Examples: add; create; register; submit; rate. Not for changing something that already exists (use update), or for putting an existing thing into a group (use link)",
+              "read_one": "Look at one specific thing Examples: view; show; open; get details of.",
+              "query": "Find or list several things Examples: list; search; show all; browse; filter.",
+              "update": "Change some details of something that exists Examples: edit; change; correct; set the price. Not for replacing all details (use replace), and not for moving through a lifecycle (use transition)",
+              "replace": "Replace all the details of something that exists Examples: replace; overwrite; re-enter all details of; save the full record of. Not for changing just a few details (use update), and not for moving through a lifecycle (use transition)",
+              "transition": "Move something to another stage of its life Examples: archive; approve; cancel; publish; restore. Not for editing ordinary details (use update)",
+              "delete": "Remove something Examples: delete; remove; discard. Not for taking a thing out of a group (use unlink)",
+              "link": "Connect two existing things, like putting a book into a list Examples: add to; include in; attach to; set the. Not for creating the thing itself (use create)",
+              "unlink": "Disconnect two things, like taking a book out of a list Examples: remove from; take out of; detach from. Not for deleting the thing itself (use delete)",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "kind": {
+            "type": "choice",
+            "choice": "create",
+            "probabilities": {
+              "create": 0.9998988122776022,
+              "read_one": 3.535392310542925e-05,
+              "query": 1.1477738366974977e-05,
+              "update": 3.726276080532022e-06,
+              "replace": 3.288427099244576e-06,
+              "transition": 4.494746926031575e-06,
+              "delete": 1.994531857921714e-06,
+              "link": 1.0782337353491704e-05,
+              "unlink": 5.771369294603639e-06,
+              "none": 2.429837231356196e-05
+            },
+            "confidence": 0.9998875691973359
+          }
+        },
+        "usage": {
+          "input_tokens": 497,
+          "output_tokens": 0
+        }
+      }
+    },
+    "4f0f982449bc8dad": {
+      "request": {
+        "state": "Hello there.",
+        "model": "semif",
+        "questions": {
+          "check": {
+            "type": "noul",
+            "instructions": "Is this a greeting?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "check": {
+            "type": "noul",
+            "noul": 0.9997694932780068
+          }
+        },
+        "usage": {
+          "input_tokens": 103,
+          "output_tokens": 0
+        }
+      }
+    },
+    "621a01d03c6e6207": {
+      "request": {
+        "state": "Manage shipping addresses for orders",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "none",
+            "probabilities": {
+              "catalogue": 0.010952400002585603,
+              "community": 0.0027692003897456484,
+              "curation": 0.00037477051908516555,
+              "none": 0.9859036290885836
+            },
+            "confidence": 0.9812048387847782
+          }
+        },
+        "usage": {
+          "input_tokens": 176,
+          "output_tokens": 0
+        }
+      }
+    },
+    "6be182c9cfc1974c": {
+      "request": {
+        "state": "Let staff mark a book as featured on the homepage",
+        "model": "semif",
+        "questions": {
+          "service": {
+            "type": "choice",
+            "instructions": "Which existing service does this task describe?",
+            "criteria": {
+              "create_collection": "Create a new named collection Examples: Make a 'Summer reads' list.",
+              "add_book_to_collection": "Put an existing book into a collection Examples: Add Dune to Summer reads. Not for creating a new book (use add_book)",
+              "remove_book_from_collection": "Take a book out of a collection; the book stays in the store Examples: Remove a book from a list. Not for deleting a book",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "service": {
+            "type": "choice",
+            "choice": "none",
+            "probabilities": {
+              "create_collection": 0.05893477438376635,
+              "add_book_to_collection": 0.01688509556282211,
+              "remove_book_from_collection": 0.002285149190471803,
+              "none": 0.9218949808629398
+            },
+            "confidence": 0.8958599744839196
+          }
+        },
+        "usage": {
+          "input_tokens": 216,
+          "output_tokens": 0
+        }
+      }
+    },
+    "7b09e2390d3cf3f3": {
+      "request": {
+        "state": "Add a new book",
+        "model": "semif",
+        "questions": {
+          "service": {
+            "type": "choice",
+            "instructions": "Which existing service does this task describe?",
+            "criteria": {
+              "add_book": "Add a new book to the catalogue Examples: Add a new book; Staff can create a book with title, author and price.",
+              "list_books": "List books, optionally filtered Examples: Show all books; List books by an author.",
+              "get_book": "Show one book's details Examples: View a book; Get a book by its id.",
+              "change_book_price": "Change the price of an existing book Examples: Update a book's price; Put a book on sale. Not for replacing all of a book's details (use replace_book)",
+              "replace_book": "Replace all the details of a book Examples: Edit a book's full record; Overwrite a book's details. Not for changing only the price (use change_book_price)",
+              "archive_book": "Take a book out of sale without deleting it Examples: Archive a book; Stop selling a book. Not for deleting a book permanently",
+              "set_book_publisher": "Record which publisher publishes a book Examples: Set the publisher of a book; This book is published by Penguin.",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "service": {
+            "type": "choice",
+            "choice": "add_book",
+            "probabilities": {
+              "add_book": 0.9991947120220223,
+              "list_books": 8.474993214131189e-05,
+              "get_book": 3.117775767546347e-05,
+              "change_book_price": 1.0121935956039944e-05,
+              "replace_book": 1.4727329915353395e-05,
+              "archive_book": 2.7514274578129613e-05,
+              "set_book_publisher": 1.0774744738725965e-05,
+              "none": 0.0006262220029727194
+            },
+            "confidence": 0.9990796708823112
+          }
+        },
+        "usage": {
+          "input_tokens": 373,
+          "output_tokens": 0
+        }
+      }
+    },
+    "84b4c8007b0b39e9": {
+      "request": {
+        "state": "Show all books by an author",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "catalogue",
+            "probabilities": {
+              "catalogue": 0.9581570268242461,
+              "community": 0.008289682552811659,
+              "curation": 0.01366737595217232,
+              "none": 0.01988591467076999
+            },
+            "confidence": 0.9442093690989948
+          }
+        },
+        "usage": {
+          "input_tokens": 177,
+          "output_tokens": 0
+        }
+      }
+    },
+    "8c0fa0fb8e50d0b1": {
+      "request": {
+        "state": "Let customers save books to a personal wishlist",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "community",
+            "probabilities": {
+              "catalogue": 0.10335308544697097,
+              "community": 0.6739467757277202,
+              "curation": 0.02961115475085829,
+              "none": 0.19308898407445058
+            },
+            "confidence": 0.5652623676369603
+          }
+        },
+        "usage": {
+          "input_tokens": 179,
+          "output_tokens": 0
+        }
+      }
+    },
+    "90e9c6387dfbb945": {
+      "request": {
+        "state": "Let staff mark a book as featured on the homepage",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "curation",
+            "probabilities": {
+              "catalogue": 0.051956180690833895,
+              "community": 0.010230778577043902,
+              "curation": 0.9209453384763266,
+              "none": 0.01686770225579547
+            },
+            "confidence": 0.8945937846351022
+          }
+        },
+        "usage": {
+          "input_tokens": 181,
+          "output_tokens": 0
+        }
+      }
+    },
+    "9a2d025ffab376fb": {
+      "request": {
+        "state": "Show all books by an author",
+        "model": "semif",
+        "questions": {
+          "service": {
+            "type": "choice",
+            "instructions": "Which existing service does this task describe?",
+            "criteria": {
+              "add_book": "Add a new book to the catalogue Examples: Add a new book; Staff can create a book with title, author and price.",
+              "list_books": "List books, optionally filtered Examples: Show all books; List books by an author.",
+              "get_book": "Show one book's details Examples: View a book; Get a book by its id.",
+              "change_book_price": "Change the price of an existing book Examples: Update a book's price; Put a book on sale. Not for replacing all of a book's details (use replace_book)",
+              "replace_book": "Replace all the details of a book Examples: Edit a book's full record; Overwrite a book's details. Not for changing only the price (use change_book_price)",
+              "archive_book": "Take a book out of sale without deleting it Examples: Archive a book; Stop selling a book. Not for deleting a book permanently",
+              "set_book_publisher": "Record which publisher publishes a book Examples: Set the publisher of a book; This book is published by Penguin.",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "service": {
+            "type": "choice",
+            "choice": "list_books",
+            "probabilities": {
+              "add_book": 0.0002610021095931687,
+              "list_books": 0.9990184141291008,
+              "get_book": 0.00012328866676665764,
+              "change_book_price": 3.117225667258779e-05,
+              "replace_book": 3.532279442714491e-05,
+              "archive_book": 2.4276977906714196e-05,
+              "set_book_publisher": 1.8906929404356212e-05,
+              "none": 0.00048761613612871926
+            },
+            "confidence": 0.9988781875761151
+          }
+        },
+        "usage": {
+          "input_tokens": 375,
+          "output_tokens": 0
+        }
+      }
+    },
+    "b012b05cbc0a9f36": {
+      "request": {
+        "state": "Add a new book",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "catalogue",
+            "probabilities": {
+              "catalogue": 0.9966169892951555,
+              "community": 0.0010298019816748017,
+              "curation": 0.0004292853339498881,
+              "none": 0.0019239233892196397
+            },
+            "confidence": 0.9954893190602073
+          }
+        },
+        "usage": {
+          "input_tokens": 175,
+          "output_tokens": 0
+        }
+      }
+    },
+    "b270c1a69c1de79c": {
+      "request": {
+        "state": "Readers should be able to rate a book from 1 to 5",
+        "model": "semif",
+        "questions": {
+          "service": {
+            "type": "choice",
+            "instructions": "Which existing service does this task describe?",
+            "criteria": {
+              "add_review": "A reader rates and comments on a book Examples: Review a book; Rate a book from 1 to 5.",
+              "list_reviews": "Show the reviews of one book Examples: See what readers said about a book.",
+              "remove_review": "Delete a review from a book Examples: Remove an offensive review.",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "service": {
+            "type": "choice",
+            "choice": "add_review",
+            "probabilities": {
+              "add_review": 0.999829018839149,
+              "list_reviews": 0.00010889014850716977,
+              "remove_review": 4.539216722979151e-05,
+              "none": 1.6698845114056357e-05
+            },
+            "confidence": 0.9997720251188653
+          }
+        },
+        "usage": {
+          "input_tokens": 200,
+          "output_tokens": 0
+        }
+      }
+    },
+    "cb87ddf0032002f6": {
+      "request": {
+        "state": "Put Dune into the Summer reads collection",
+        "model": "semif",
+        "questions": {
+          "area": {
+            "type": "choice",
+            "instructions": "Which area of the business does this task belong to?",
+            "criteria": {
+              "catalogue": "Books for sale: adding, finding, changing and retiring books, and who publishes them",
+              "community": "What readers say about books: reviews and ratings",
+              "curation": "Curated collections of books, like 'Summer reads'",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "area": {
+            "type": "choice",
+            "choice": "curation",
+            "probabilities": {
+              "catalogue": 0.0015009260384040016,
+              "community": 7.472670728912723e-05,
+              "curation": 0.9983283962628422,
+              "none": 9.595099146462446e-05
+            },
+            "confidence": 0.997771195017123
+          }
+        },
+        "usage": {
+          "input_tokens": 179,
+          "output_tokens": 0
+        }
+      }
+    },
+    "df348153a8425fd7": {
+      "request": {
+        "state": "Put Dune into the Summer reads collection",
+        "model": "semif",
+        "questions": {
+          "service": {
+            "type": "choice",
+            "instructions": "Which existing service does this task describe?",
+            "criteria": {
+              "create_collection": "Create a new named collection Examples: Make a 'Summer reads' list.",
+              "add_book_to_collection": "Put an existing book into a collection Examples: Add Dune to Summer reads. Not for creating a new book (use add_book)",
+              "remove_book_from_collection": "Take a book out of a collection; the book stays in the store Examples: Remove a book from a list. Not for deleting a book",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "service": {
+            "type": "choice",
+            "choice": "add_book_to_collection",
+            "probabilities": {
+              "create_collection": 0.0024722068559596046,
+              "add_book_to_collection": 0.9973594291642512,
+              "remove_book_from_collection": 0.0001230839317571628,
+              "none": 4.5280048032008994e-05
+            },
+            "confidence": 0.9964792388856684
+          }
+        },
+        "usage": {
+          "input_tokens": 214,
+          "output_tokens": 0
+        }
+      }
+    },
+    "ff9195595074eb93": {
+      "request": {
+        "state": "Let staff add a new publisher",
+        "model": "semif",
+        "questions": {
+          "service": {
+            "type": "choice",
+            "instructions": "Which existing service does this task describe?",
+            "criteria": {
+              "add_book": "Add a new book to the catalogue Examples: Add a new book; Staff can create a book with title, author and price.",
+              "list_books": "List books, optionally filtered Examples: Show all books; List books by an author.",
+              "get_book": "Show one book's details Examples: View a book; Get a book by its id.",
+              "change_book_price": "Change the price of an existing book Examples: Update a book's price; Put a book on sale. Not for replacing all of a book's details (use replace_book)",
+              "replace_book": "Replace all the details of a book Examples: Edit a book's full record; Overwrite a book's details. Not for changing only the price (use change_book_price)",
+              "archive_book": "Take a book out of sale without deleting it Examples: Archive a book; Stop selling a book. Not for deleting a book permanently",
+              "set_book_publisher": "Record which publisher publishes a book Examples: Set the publisher of a book; This book is published by Penguin.",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "service": {
+            "type": "choice",
+            "choice": "none",
+            "probabilities": {
+              "add_book": 0.08290233432149073,
+              "list_books": 0.018498011133832894,
+              "get_book": 0.0022092723767444906,
+              "change_book_price": 0.0007172457281767444,
+              "replace_book": 0.0019496760294427202,
+              "archive_book": 0.0015184092184655378,
+              "set_book_publisher": 0.0009209617449896468,
+              "none": 0.8912840894468571
+            },
+            "confidence": 0.8757532450821224
+          }
+        },
+        "usage": {
+          "input_tokens": 375,
+          "output_tokens": 0
+        }
+      }
+    }
+  }
+}

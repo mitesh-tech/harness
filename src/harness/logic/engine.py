@@ -35,6 +35,9 @@ MESSAGES = {
     ),
     "composition_cycle": "{name} is composed in itself through a chain of compositions",
     "conflicting_decisions": "rules disagree on {0}: {1} (rule {2}) vs {3} (rule {4})",
+    "flow_cycle": "step '{name}' can lead back to itself; the classification could loop forever",
+    "flow_unreachable": "step '{name}' can never be reached from the start",
+    "flow_dead_end": "step '{name}' can never finish with an outcome",
 }
 
 
