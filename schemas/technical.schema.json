@@ -1,0 +1,379 @@
+{
+  "$defs": {
+    "Component": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "description": "All conditions given must hold for the rule to apply. No conditions: always applies.",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "kind_in": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind In"
+        },
+        "has": {
+          "anyOf": [
+            {
+              "enum": [
+                "filters",
+                "changes",
+                "moves",
+                "within",
+                "association"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Has"
+        },
+        "fact": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fact"
+        },
+        "cardinality": {
+          "anyOf": [
+            {
+              "enum": [
+                "one_to_many",
+                "many_to_many"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cardinality"
+        },
+        "parent_of_composition": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Of Composition"
+        }
+      },
+      "title": "Condition",
+      "type": "object"
+    },
+    "Kind": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "examples": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Examples",
+          "type": "array"
+        },
+        "not": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Not"
+        },
+        "effects": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Effects",
+          "type": "array"
+        },
+        "method": {
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "persistence": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Persistence",
+          "type": "string"
+        },
+        "status": {
+          "maximum": 599,
+          "minimum": 100,
+          "title": "Status",
+          "type": "integer"
+        },
+        "names_as": {
+          "minLength": 1,
+          "title": "Names As",
+          "type": "string"
+        },
+        "target": {
+          "default": "entity",
+          "enum": [
+            "entity",
+            "association"
+          ],
+          "title": "Target",
+          "type": "string"
+        },
+        "accepts": {
+          "items": {
+            "enum": [
+              "filters",
+              "changes",
+              "moves"
+            ],
+            "type": "string"
+          },
+          "title": "Accepts",
+          "type": "array"
+        }
+      },
+      "required": [
+        "description",
+        "examples",
+        "effects",
+        "method",
+        "persistence",
+        "status",
+        "names_as"
+      ],
+      "title": "Kind",
+      "type": "object"
+    },
+    "Outcome": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Components",
+          "type": "array"
+        },
+        "error_status": {
+          "anyOf": [
+            {
+              "maximum": 599,
+              "minimum": 400,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Status"
+        },
+        "route": {
+          "anyOf": [
+            {
+              "const": "nested",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Route"
+        },
+        "route_param": {
+          "anyOf": [
+            {
+              "const": "identifier",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Route Param"
+        },
+        "query_params": {
+          "anyOf": [
+            {
+              "const": "from_filters",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Query Params"
+        },
+        "response_includes": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Response Includes",
+          "type": "array"
+        },
+        "persistence_target": {
+          "anyOf": [
+            {
+              "enum": [
+                "link_table",
+                "reference"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Persistence Target"
+        }
+      },
+      "title": "Outcome",
+      "type": "object"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/Condition"
+        },
+        "then": {
+          "$ref": "#/$defs/Outcome"
+        }
+      },
+      "required": [
+        "id",
+        "then"
+      ],
+      "title": "Rule",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "kinds": {
+      "maxProperties": 20,
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Kind"
+        }
+      },
+      "title": "Kinds",
+      "type": "object"
+    },
+    "components": {
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Component"
+        }
+      },
+      "title": "Components",
+      "type": "object"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/Rule"
+      },
+      "minItems": 1,
+      "title": "Rules",
+      "type": "array"
+    },
+    "askable": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "title": "Askable",
+      "type": "object"
+    }
+  },
+  "required": [
+    "kinds",
+    "components",
+    "rules"
+  ],
+  "title": "Technical",
+  "type": "object"
+}

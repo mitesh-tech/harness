@@ -16,9 +16,10 @@ dist/
 .coverage
 htmlcov/
 
-# Harness runtime output
-.harness/
-reports/
+# Harness runtime output (the .harness/ knowledge files themselves are committed)
+.harness/reports/
+.harness/runs/
+.harness/wt/
 
 # OS / editors
 .DS_Store

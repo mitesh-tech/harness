@@ -1,0 +1,28 @@
+{
+  "additionalProperties": false,
+  "description": "The link between a project and the harness.",
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "pack": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Pack",
+      "type": "string"
+    },
+    "knowledge": {
+      "default": ".harness",
+      "minLength": 1,
+      "title": "Knowledge",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "pack"
+  ],
+  "title": "HarnessFile",
+  "type": "object"
+}

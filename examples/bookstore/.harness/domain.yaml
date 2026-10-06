@@ -1,0 +1,174 @@
+# yaml-language-server: $schema=../../../schemas/domain.schema.json
+#
+# Domain knowledge for Bookstore, in business language only.
+# SemIf reads the words (descriptions, examples, "not" hints);
+# the Prolog engine reads the structured facts.
+
+# ── Areas: the first question SemIf answers ("which area?") ─────────
+areas:
+  catalogue:
+    description: "Books for sale: adding, finding, changing and retiring books, and who publishes them"
+  community:
+    description: "What readers say about books: reviews and ratings"
+  curation:
+    description: "Curated collections of books, like 'Summer reads'"
+
+# ── Entities ─────────────────────────────────────────────────────────
+entities:
+  Book:
+    area: catalogue
+    description: "A book for sale in the store"
+    identifier: id
+    attributes:
+      id:     { type: id, generated: true }
+      isbn:   { type: text, unique: true }
+      title:  { type: text, required: true }
+      author: { type: text, required: true }
+      price:  { type: money, required: true, min: 0 }
+    lifecycle:
+      field: status
+      initial: active
+      transitions:
+        - { from: active, to: archived }
+        - { from: archived, to: active }
+
+  Publisher:
+    area: catalogue
+    description: "A company that publishes books"
+    identifier: id
+    attributes:
+      id:   { type: id, generated: true }
+      name: { type: text, required: true, unique: true }
+
+  Review:
+    area: community
+    description: "A reader's rating and comment about one book"
+    identifier: id
+    attributes:
+      id:      { type: id, generated: true }
+      rating:  { type: integer, required: true, min: 1, max: 5 }
+      comment: { type: text }
+
+  Collection:
+    area: curation
+    description: "A named, curated list of books"
+    identifier: id
+    attributes:
+      id:   { type: id, generated: true }
+      name: { type: text, required: true, unique: true }
+
+# ── Associations ─────────────────────────────────────────────────────
+# composition: the child cannot exist without its parent
+# aggregation: the child exists on its own
+associations:
+  book_reviews:
+    kind: composition
+    parent: Book
+    child: Review
+    cardinality: one_to_many
+
+  collection_books:
+    kind: aggregation
+    parent: Collection
+    child: Book
+    cardinality: many_to_many
+
+  book_publisher:
+    kind: aggregation
+    parent: Publisher
+    child: Book
+    cardinality: one_to_many
+
+# ── Services: the second question SemIf answers ("which service?") ──
+services:
+  # catalogue
+  add_book:
+    description: "Add a new book to the catalogue"
+    examples: ["Add a new book", "Staff can create a book with title, author and price"]
+    kind: create
+    acts_on: Book
+
+  list_books:
+    description: "List books, optionally filtered"
+    examples: ["Show all books", "List books by an author"]
+    kind: query
+    acts_on: Book
+    filters: [author, status]
+
+  get_book:
+    description: "Show one book's details"
+    examples: ["View a book", "Get a book by its id"]
+    kind: read_one
+    acts_on: Book
+
+  change_book_price:
+    description: "Change the price of an existing book"
+    examples: ["Update a book's price", "Put a book on sale"]
+    not: "Not for replacing all of a book's details (use replace_book)"
+    kind: update
+    acts_on: Book
+    changes: [price]
+
+  replace_book:
+    description: "Replace all the details of a book"
+    examples: ["Edit a book's full record", "Overwrite a book's details"]
+    not: "Not for changing only the price (use change_book_price)"
+    kind: replace
+    acts_on: Book
+
+  archive_book:
+    description: "Take a book out of sale without deleting it"
+    examples: ["Archive a book", "Stop selling a book"]
+    not: "Not for deleting a book permanently"
+    kind: transition
+    acts_on: Book
+    moves: { from: active, to: archived }
+
+  set_book_publisher:
+    description: "Record which publisher publishes a book"
+    examples: ["Set the publisher of a book", "This book is published by Penguin"]
+    kind: link
+    association: book_publisher
+
+  # community
+  add_review:
+    description: "A reader rates and comments on a book"
+    examples: ["Review a book", "Rate a book from 1 to 5"]
+    kind: create
+    acts_on: Review
+    within: Book
+
+  list_reviews:
+    description: "Show the reviews of one book"
+    examples: ["See what readers said about a book"]
+    kind: query
+    acts_on: Review
+    within: Book
+
+  remove_review:
+    description: "Delete a review from a book"
+    examples: ["Remove an offensive review"]
+    kind: delete
+    acts_on: Review
+    within: Book
+
+  # curation
+  create_collection:
+    description: "Create a new named collection"
+    examples: ["Make a 'Summer reads' list"]
+    kind: create
+    acts_on: Collection
+
+  add_book_to_collection:
+    description: "Put an existing book into a collection"
+    examples: ["Add Dune to Summer reads"]
+    not: "Not for creating a new book (use add_book)"
+    kind: link
+    association: collection_books
+
+  remove_book_from_collection:
+    description: "Take a book out of a collection; the book stays in the store"
+    examples: ["Remove a book from a list"]
+    not: "Not for deleting a book"
+    kind: unlink
+    association: collection_books
