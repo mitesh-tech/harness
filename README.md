@@ -132,7 +132,7 @@ Tests replay real SemIf answers recorded in `tests/recordings/`, so they run wit
 
 ## Roadmap
 
-The first milestone is a small end-to-end example: a "Bookstore" API where the harness classifies tasks, resolves the design, generates endpoints, verifies them and writes a report. See [docs/plan.md](docs/plan.md) for the full plan.
+The harness is becoming a platform of small **software factories**, each turning a business-language task into one kind of verified code. The first is the [CRUD API factory](docs/factories/crud-api.md): it classifies the task, resolves the design, writes a spec for you to confirm, then generates, verifies and reports. See [docs/architecture.md](docs/architecture.md) for the end-to-end flow and [docs/plan.md](docs/plan.md) for the stages.
 
 ## Contributing
 

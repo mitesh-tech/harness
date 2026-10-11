@@ -2,204 +2,100 @@
 
 ## Goal
 
-A public, model-agnostic harness for backend API development:
+A public, model-agnostic platform of **small software factories** for backend development. Each factory turns a task written in business language into verified code of one kind:
 
-- A task written in business language is classified through three knowledge-base layers — **domain → architecture → implementation**.
-- SemIf reads the business facts from the task; a **resolver** turns those facts into the architecture and components using fixed links, decision tables and rules.
-- Known patterns are built by deterministic **generators**; LLM agents write only what generators can't.
-- Everything is verified with tests and SemIf checks, then recorded in an audit report.
-- A human confirms every new knowledge-base option, and **evals across all layers** protect quality.
+- **SemIf** (a small open decision model) reads the task and picks among options taken from your knowledge base.
+- **Prolog** derives the design from that knowledge and the factory's rules, and explains every decision.
+- A **spec** is written and **confirmed by you** before any code is generated.
+- **Templates** generate the code from the confirmed spec; checks verify it; a report records everything.
+- Confirmed results flow back into the knowledge base, with your approval.
 
-See [architecture.md](architecture.md) for the end-to-end diagram.
+The first factory is the [CRUD API factory](factories/crud-api.md). See [architecture.md](architecture.md) for the end-to-end flow.
 
 ## Principles
 
-1. **A human confirms every knowledge-base change** — new options, links, rules and eval answers.
-2. **Deterministic first** — stated facts, links, tables and rules before SemIf; generators and code checks before LLMs; LLMs before asking a human.
-3. **SemIf makes one fuzzy decision per task** — reading the business facts. Everything after that follows rules.
-4. **Decisions live in YAML; the engine lives in Python.**
-5. **Language-agnostic** — each stack (language + framework) plugs in as a pack.
-6. **Nothing is trusted without evals** — every layer is measured; security layers allow zero misses.
-7. **Public engine, private knowledge** — real knowledge base, evals and reports live in a private config repo.
+1. **A person confirms** every spec and every knowledge-base change.
+2. **Deterministic first:** knowledge and rules before SemIf, templates before LLMs, a person for anything unsure.
+3. **SemIf turns language into facts; Prolog turns facts into decisions.** Every decision records its source.
+4. **Decisions live in YAML; the engine lives in Python.** Factories, packs and data sources are plugins.
+5. **Small factories:** each has a narrow job, its own rules and its own evals.
+6. **Nothing is trusted without evals.**
+7. **Public engine, private knowledge:** a project's real knowledge stays in the project.
 
-## Components
+## Status
 
-| Component | Role |
+| Part | Status |
 |---|---|
-| **Knowledge base** | Domain (entities, capabilities as typed facts, rules, sensitivity) → architecture (endpoint, pattern) → implementation (components, complexity) |
-| **SemIf client + classifier** | Identifies the domain capability, or fills domain facts from fixed lists; flags "unsure" |
-| **Resolver** | Turns domain facts into architecture and components, deterministically, recording the source of every value |
-| **Review queue** | "None" or "unsure" → LLM drafts an option → human confirms → knowledge-base pull request |
-| **Evals** | One file per case, per-layer expected answers, runner, scorecard and gates |
-| **Stack packs** | `pack.yaml`: paths, commands, introspection, generators, agent hints, sample app |
-| **Generators + tools registry** | Input schemas, input gathering, validation, templates, extension points; also an MCP server |
-| **Executors + agents** | Aider, Claude Code, Codex, Copilot adapters; `.agents/*.md` roles; `models.yaml` maps complexity level → model |
-| **Flow runner** | Tests first, units, cross-cutting steps, escalation, one git worktree per task |
-| **Verifier** | Pack test/lint commands, scope check, generated-code checksum, SemIf yes/no per criterion |
-| **Reports + feedback** | Audit report, automatic eval capture, stats, new-generator candidates |
+| Project scaffold, CI, licence (Apache-2.0), src layout | Done |
+| Bookstore sample app (`examples/bookstore`) | Done |
+| Knowledge files, schemas, `harness validate` (syntax, shape, references) | Done |
+| Prolog engine, logic checks, `harness kb export` / `kb query` | Done |
+| SemIf over HTTP (Qwen3.5-4B on MLX), `harness semif check`, recorded tests | Done |
+| Classification (area → service flow, configuration-driven) | Done; replaced in S2 by the factory flow |
+| Factory structure, router, data layer, resolve, spec, generation, verification, learning | Planned below |
 
-## The resolver
+## Stages
 
-The resolver makes the links between layers deterministic. SemIf only extracts the domain facts; the resolver derives everything else.
+Each stage is one or two pull requests, ends with something you can run, and starts only after you approve its detailed plan.
 
-### Domain capabilities are typed facts
-
-```yaml
-# domain.yaml
-capabilities:
-  book_appointment:
-    description: "Reserve a time slot for a customer with a staff member"
-    entity: Appointment
-    operation: create            # create | read | update | delete | state_change | action
-    cardinality: one             # one | many
-    parent: Customer             # or null
-    actors: [staff]
-    data: [pii]                  # sensitive | pii | financial | public
-    owned_by: customer
-    rules: [no_overlap]
-```
-
-### Architecture comes from a decision table
-
-```yaml
-# rules/architecture.yaml
-table: endpoint_pattern
-inputs:  [operation, cardinality, parent]
-outputs: [method, pattern]
-policy: first_match
-rows:
-  - { when: { operation: create, cardinality: one, parent: set },  then: { method: POST,   pattern: create_nested } }
-  - { when: { operation: create, cardinality: one, parent: null }, then: { method: POST,   pattern: create } }
-  - { when: { operation: create, cardinality: many },              then: { method: POST,   pattern: bulk_create } }
-  - { when: { operation: read,   cardinality: one },               then: { method: GET,    pattern: get_by_id } }
-  - { when: { operation: read,   cardinality: many, parent: set }, then: { method: GET,    pattern: nested_list } }
-  - { when: { operation: read,   cardinality: many },              then: { method: GET,    pattern: list } }
-  - { when: { operation: update },                                 then: { method: PATCH,  pattern: partial_update } }
-  - { when: { operation: state_change },                           then: { method: PATCH,  pattern: state_transition } }
-  - { when: { operation: delete },                                 then: { method: DELETE, pattern: soft_delete } }
-```
-
-### Components come from implication rules
-
-```yaml
-# rules/components.yaml
-implies:
-  - { when: { data: sensitive },        add: [field_masking, access_audit] }
-  - { when: { actors: not_empty },      add: [authentication, role_check] }
-  - { when: { owned_by: set },          add: [ownership_scope] }
-  - { when: { operation: create },      add: [body_validation, db_insert, serialization] }
-  - { when: { rules: no_overlap },      add: [conflict_check, transaction] }
-  - { when: { component: read_cache },  add: [cache_invalidation] }   # rules can chain
-requires:
-  - { component: transaction, needs_any: [db_insert, db_update] }
-forbids:
-  - { pattern: get_by_id, with: [db_insert, db_update] }
-```
-
-### Precedence
-
-| Order | Source | Example |
+| Stage | Content | You can run |
 |---|---|---|
-| 1 | Stated in the task or contract | "PATCH /appointments/{id}" |
-| 2 | Capability link in the knowledge base | `book_appointment` → POST `create_nested` |
-| 3 | Decision table or implication rule | `operation: state_change` → PATCH |
-| 4 | SemIf, only for what is still open | "Does this also need caching?" |
-| 5 | Human | Anything unsure or conflicting |
+| **S0: Design docs** | CRUD API factory specification, this plan, architecture and end-to-end diagram | Read the design |
+| **S1: Factory structure** | `src/harness/factories/crud-api/` with `factory.yaml`, factory loader; `technical.yaml` moved into the factory, trimmed to CRUD, with the **operation layer** (create, read, update, delete → kinds); Bookstore's non-CRUD services removed; `validate` covers factories | `harness validate` |
+| **S2: Classification** | **Factory router**; entity first; new API or change; operation → kind → lookup → SemIf confirms; outcomes `UNSUPPORTED`, `NO_ENTITY`, `NEW_SERVICE`, `MATCHED`, `UNSURE`; SemIf answers re-recorded | `harness classify "…"` |
+| **S3: Data layer** | `.harness/data.yaml` (sources, conventions, mappings); **relational** source plugin (schema, capabilities, optional introspection); mapping checks; `NO_MAPPING` | `harness validate --introspect` |
+| **S4: Resolve and spec** | **API anatomy rules** in Prolog (request body, path and query parameters, response, statuses), data mapping, askable yes/no questions to SemIf, sources for every value, open questions; `spec.yaml` + `openapi.yaml` | `harness resolve "…"` |
+| **S5: Confirm, generate, verify, report (create)** | Confirm the spec (approve, edit and re-check, reject); FastAPI templates (route, schemas, repository interface, relational adapter, tests); router registration; git worktree; verification against the spec; report | `harness run "Let staff add a new publisher"` |
+| **S6: All CRUD kinds** | read one, list (filters are response fields, paging), update, replace, delete; nested APIs for composition | `harness run` for any CRUD task |
+| **S7: Change existing APIs** | Add or remove an attribute: impact analysis, then domain, mapping, schemas and tests updated together | `harness run "Add an isbn field to books"` |
+| **S8: Learn and evals** | New services and attributes saved to the knowledge base after approval; eval cases; `harness eval` | Track classification accuracy |
 
-Every resolved value records its source; the audit report shows it.
+## Phase 2 and later
 
-### Rule validation
+| Item | Notes |
+|---|---|
+| **Domain-model factory** | LLM-guided design of new entities: asks the right questions, considers the existing domain model, drafts YAML for your approval |
+| More operations | Lifecycle transitions, linking aggregations |
+| More data sources | REST APIs of other services, document stores |
+| Agent-driven runs | Claude Code, Codex, Copilot skills that drive the same spec-based flow |
+| More stack packs | e.g. Node/Express, to prove the factories are language-agnostic |
+| More factories | e.g. authentication, export and reports |
 
-`harness validate` checks the rules themselves:
-
-- **Completeness** — every input combination matches a row.
-- **No overlaps** — two rows never match the same input with different results, unless order is intended.
-- **No contradictions** — an implied component is never also forbidden.
-- **References** — every component a rule adds exists in the implementation knowledge base.
-
-## Repository layout
+## Repository layout (target)
 
 ```
-harness/                          # PUBLIC (Apache-2.0) — the repository
-├── src/harness/                  # the Python package (src layout)
-│   ├── config/        # schemas, loaders, validator (KB, rules, models, flows, packs, tools, eval cases)
-│   ├── semif/         # client
-│   ├── classify/      # domain layer: capability or facts via SemIf
-│   ├── resolve/       # resolver: links → decision tables → rules → SemIf gaps
-│   ├── review/        # unsure queue, option drafter, KB pull requests
-│   ├── evals/         # case loader, runner, scorecard, gates, import from PRs
-│   ├── packs/         # pack loader + interface
-│   ├── generators/    # input gathering, validation, runner, generated-code guard
-│   ├── tools/         # tools registry + MCP server
-│   ├── executors/     # aider, claude, codex, copilot
-│   ├── flows/         # TDD runner, units, escalation, worktrees
-│   ├── context/       # candidate search + SemIf relevance
-│   ├── verify/        # checks + SemIf criteria
-│   └── report/        # audit report + stats
-├── packs/
-│   ├── python-fastapi/   # first pack
-│   └── node-express/     # second pack — proves the core is language-agnostic
-├── examples/config/      # generic sample KB, rules, models, flows, made-up eval cases
-├── docs/
-└── CONTRIBUTING.md · SECURITY.md · LICENSE
-
-your-harness-config/              # PRIVATE (loaded with --config-dir)
-├── knowledge_base/{domain,architecture,implementation}.yaml
-├── rules/{architecture,components}.yaml
-├── models.yaml · flows.yaml · agents/
-├── evals/cases/<domain>/<case>.yaml
-└── reports/
+harness/
+├── src/harness/
+│   ├── knowledge/       # schemas, loading, validation (domain, data, technical)
+│   ├── logic/           # Prolog: compile, engine, core and checks
+│   ├── semif/           # decision-model interface and HTTP adapter
+│   ├── classify/        # generic flow runner, option sources, lookups
+│   ├── factories/
+│   │   └── crud-api/    # factory.yaml, technical.yaml, checks.pl, templates/, evals/
+│   ├── datasources/
+│   │   └── relational/  # source.yaml, schema, introspect, templates/
+│   ├── resolve/         # design, naming, facts, askable loop, spec
+│   ├── run/             # confirm, worktree, orchestration
+│   ├── verify/          # checks against the spec
+│   └── report/          # run reports
+├── examples/bookstore/  # sample app + its harness.yaml and .harness/ knowledge
+├── schemas/             # JSON Schemas for editor support
+├── tests/
+└── docs/
 ```
-
-## Phases
-
-### Milestone 1 — Decide: classify tasks reliably (useful before any code generation)
-
-| Phase | Build | Done when |
-|---|---|---|
-| **0. Public scaffold** | `uv`, `ruff`, `pytest`, CI, Apache-2.0, CONTRIBUTING, SECURITY, secrets scan, `--config-dir` | CI is green and the harness runs against an external config folder |
-| **1. Schemas and validator** | Schemas for the three KB layers, typed capabilities, rules (decision tables, implications), `models.yaml`, `flows.yaml`, `pack.yaml`, `tools.yaml`, eval cases. `harness validate` rejects: > 20 options per level, missing descriptions, broken links, unquoted yes/no, incomplete or overlapping tables, contradictory rules | Example config validates; broken files and broken rules fail with clear errors |
-| **2. SemIf client and domain classifier** | Capability identification or fact extraction from fixed lists; per-layer thresholds; explicit values skip SemIf | `harness classify "..."` prints the capability or facts with confidence |
-| **3. Resolver** | Precedence chain (stated → link → table → rule → SemIf gap → human); source recorded per value | `harness resolve "..."` prints architecture and components with the source of each value; same facts always give the same result |
-| **4. Evals across all layers** | Case files, runner, scorecard (per layer, confusion, calibration, hard cases), gates: domain/architecture no drop vs baseline, zero missed security components, zero false passes (verification, from phase 11). CI runs evals on every KB or rules PR | A deliberately bad KB or rule change is blocked by CI |
-| **5. Review loop and auto eval capture** | Unsure queue → LLM draft → `harness review` → KB pull request; confirmed or corrected paths saved as eval cases (corrections marked hard) | An unknown task becomes a new KB option and a new eval case, both approved by a human |
-| **6. Import past work** | `harness eval import --from-prs`: LLM drafts cases and KB suggestions, pending until confirmed | 30+ confirmed cases and a baseline scorecard |
-
-### Milestone 2 — Build: generate and implement code
-
-| Phase | Build | Done when |
-|---|---|---|
-| **7. Stack pack interface** | `pack.yaml` schema, loader, `python-fastapi` pack with sample app, paths, commands, introspection | Sample app installs, tests and lints purely through the pack |
-| **8. Executors, agents, models** | Four CLI adapters, `.agents/*.md`, `models.yaml`, dry-run, smoke tests | The same agent runs on Aider + local Qwen and on Claude Code by changing one line |
-| **9. Contract and context** | OpenAPI contract draft for approval; context finder (pack paths + SemIf relevance) | Approved contract and the right context files for 10 sample tasks |
-| **10. Generators and tools** | Input schemas per pattern/component; input gathering (contract → introspection → resolver → SemIf → LLM → human); validation, spec confirmation, templates, extension points (stub + failing test); tools registry, MCP server, golden-file tests, generated-code checksums | "POST → create" for a sample resource is fully generated and passes its tests |
-| **11. Flow runner and verifier** | TDD order, units with `depends_on`, cross-cutting steps, escalation, worktrees; verifier with pack commands, scope, checksums, SemIf criteria with `expect`; verification evals with known-good and known-bad code | End-to-end task passes; broken code is caught; unsure verdicts go to a human |
-
-### Milestone 3 — Learn and prove
-
-| Phase | Build | Done when |
-|---|---|---|
-| **12. Reports and feedback** | Audit report (path per layer, source per value, models, retries, generated vs LLM-written, gaps); `harness stats` (pass rates, routing suggestions, rule hit counts, generator candidates) | The weekly review can be done from `harness stats` alone |
-| **13. Second pack** | `node-express` with the same KB and rules, different templates and commands | Same eval cases and same task run on both stacks |
-| **14. Pilot and publish** | Real backend with the private config repo; tune descriptions, rules and thresholds; docs, "write a pack" guide, demo, v0.1 | 20 real tasks completed with reports; v0.1 published |
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| Wrong domain facts cascade through every layer | Strict domain thresholds; hard cases in evals; unsure → human; the resolver keeps the rest deterministic |
-| Rules grow inconsistent | Validator checks completeness, overlaps, contradictions and references; rule changes go through PRs and evals |
-| Evals mark SemIf against its own answers | Only human-confirmed answers count; imported cases stay pending until confirmed |
-| Hand edits to generated code drift from the spec | Checksums on generated regions; changes go through the spec or the template |
-| Private data leaks into the public repo | Separate private config repo, secrets scan, made-up examples only |
-| SemIf slow on a 16 GB Mac | Fewer questions thanks to the resolver; batch per layer; smaller model for yes/no checks |
-| Claude Pro usage limits | Generators and local Qwen take routine work; usage logged per run |
-| Agents changing code unsupervised | Worktrees, dry-run by default, no automatic merges |
-| CLI flags change | One adapter file per tool, plus smoke tests |
+| A wrong entity or operation leads to a wrong design | Confidence threshold; SemIf always confirms lookups with a "none" option; you confirm the spec |
+| SemIf is slow when memory is short | It runs only when needed; close memory-heavy apps; tests replay recorded answers |
+| Rules or knowledge grow inconsistent | Four validation layers, including Prolog checks; changes go through pull requests |
+| Generated code edited by hand drifts from the spec | Checksums on generated files; changes go through the spec or the templates |
+| Data mappings drift from the real database | Optional `validate --introspect` |
+| Private data leaks into the public repo | Real knowledge stays in each project; examples use made-up domains |
 
 ## Open decisions
 
-1. Licence: Apache-2.0 (recommended) or MIT.
-2. First pack: `python-fastapi`?
-3. Name and hosting of the private config repo.
-4. Project name before publishing v0.1.
+1. Project name before publishing v0.1.
+2. Whether each project's `.harness/` knowledge lives in the project repo or a separate private repo.
