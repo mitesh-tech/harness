@@ -8,8 +8,8 @@ See [the architecture](../architecture.md) for how factories fit into the harnes
 
 | In scope | Not yet |
 |---|---|
-| Create, read one, list (query), update (some fields), replace (all fields), delete | Lifecycle transitions (archive, approve) |
-| Entities from the domain knowledge base | Linking and unlinking aggregations |
+| Create, read one, list (query), update (some fields), replace (all fields), transition (archive, approve), delete | Reading or updating a connection itself |
+| Entities and connections (aggregations) from the domain knowledge base: link and unlink | |
 | Composition: a child created, listed and deleted within its parent (`/books/{id}/reviews`) | Entities that don't exist yet (phase 2: domain-model factory) |
 | Relational data sources | Other data sources (REST APIs, documents) |
 | New APIs and small changes to existing ones (add or remove an attribute) | Larger refactors |
@@ -33,16 +33,48 @@ Every API this factory produces has six parts, each with fixed rules:
 
 These rules live in the factory's knowledge as Prolog rules. A check rejects any design that breaks them, for example a query parameter that isn't a response field.
 
+## Targets
+
+A task acts on a **target**:
+
+- an **entity** (Book, Review), or
+- a **connection**: an aggregation between two entities (`collection_books`, `book_publisher`).
+
+Compositions are not targets of their own: a task about reviews acts on the child entity `Review`, and its parent `Book` follows from the composition.
+
 ## Operations
 
-SemIf first answers the broad **operation**, then the specific **kind** only when the operation has more than one:
+SemIf first answers the broad **operation**. The kind follows from the operation and the target; SemIf is asked the operation's question only when more than one kind remains.
 
-| Operation | Kinds | Distinguishing question |
-|---|---|---|
-| create | create | — |
-| read | read_one, query | "One specific item, or a list?" |
-| update | update, replace | "A few details, or everything?" |
-| delete | delete | — |
+| Operation | Kinds | On an entity | On a connection | Question when several remain |
+|---|---|---|---|---|
+| create | create, link | create | link | — |
+| read | read_one, query | read_one, query | — | "One specific item, or a list of items?" |
+| update | update, replace, transition | update, replace, transition (only with a lifecycle) | — | "A few details, all the details, or another stage of its life?" |
+| delete | delete, unlink | delete | unlink | — |
+
+The kinds under update differ in method and logic: update is `PATCH` with only the changed attributes, replace is `PUT` with the whole resource, transition is `PATCH` on the lifecycle field, guarded by the allowed moves (409 otherwise).
+
+This is a Prolog rule, `offered_kind(Operation, Target, Kind, Reason)` in `core.pl`:
+
+```
+$ harness kb query "offered_kind(update, book, K, Why)"
+K = update      Why = target_type
+K = replace     Why = target_type
+K = transition  Why = has_lifecycle
+```
+
+Checks: every kind is in exactly one operation; an operation with several kinds for the same target has a question; every operation is usable on some target; every service's kind is offered for its target; entities and connections together are at most 15 (SemIf's limit with "none").
+
+## Associations and dependents
+
+| Association | Example | Create / update | Read | Delete of the parent |
+|---|---|---|---|---|
+| Composition | Book ◆— Review | The child only within its parent (`POST /books/{id}/reviews`), parent must exist | Nested (`/books/{id}/reviews`) | **Cascade**: children go with it, all the way down |
+| Aggregation, one-to-many | Publisher ◇— Book | The child carries a reference that must exist | The reference is in the response | Per policy: **restrict** (409 while referenced) or **set_null** |
+| Aggregation, many-to-many | Collection ◇—◇ Book | Link and unlink; both sides must exist | List the members | Link rows are removed; the other side stays |
+
+Dependents and the delete policy (`on_delete`) are derived in Prolog when the design is resolved; impact analysis for changes uses the same rules.
 
 ## Flow
 
@@ -51,12 +83,12 @@ SemIf first answers the broad **operation**, then the specific **kind** only whe
 | Step | Who | Outcome when it can't continue |
 |---|---|---|
 | **Factory router** | SemIf picks the factory from installed factories' descriptions | `UNSUPPORTED`: no factory handles this task |
-| **Which entity?** | SemIf, options from the domain knowledge base | `NO_ENTITY`: you add the entity (phase 2: the domain-model factory helps) |
+| **Which entity or connection?** | SemIf, options from the domain knowledge base | `NO_ENTITY`: you add the entity (phase 2: the domain-model factory helps) |
 | **New API or change?** | SemIf | — |
-| **A. Which operation?** → kind | SemIf, options from the factory's operations | `UNSURE`: you choose |
-| **Find service** | A lookup of existing services for this entity and kind; SemIf confirms among them, always with "none" | No match → a **new service**, named by rule (`add_{entity}`, `list_{entities}`, …) |
+| **A. Which operation?** → kind | SemIf for the operation; the kind by rule, or SemIf when several remain | `UNSUPPORTED`: no kind fits this target · `UNSURE`: you choose |
+| **Find service** | A lookup of existing services for this target and kind; SemIf confirms among them, always with "none" | No match → a **new service**, named by rule (`add_{entity}`, `list_{entities}`, …) |
 | **Data mapping exists?** | Check `data.yaml` | `NO_MAPPING`: you add the mapping |
-| **B. Change API** | SemIf: add or remove an attribute | The attribute's name and type come from you |
+| **B. Change API** | SemIf: add or remove an attribute (for remove, which one) | `CHANGE_API`; for add, the attribute's name and type come from you |
 | **Impact analysis** (B) | Prolog: every API that exposes the resource, and which parts include the attribute | — |
 | **Resolve** | Prolog applies the API rules and the data mapping; SemIf answers only yes/no questions the knowledge base leaves open (for example "is login required?") | Logic problems block the design |
 | **Generate spec** | The harness writes `spec.yaml` and `openapi.yaml` in the run folder | Open questions are listed in the spec |
@@ -200,14 +232,15 @@ The API contract is also written as `openapi.yaml`. Generation can be re-run fro
 | `NEW_SERVICE` | The entity and operation are known, no service exists yet | Name it, resolve, continue |
 | `UNSURE` | SemIf is below the confidence threshold | You choose |
 | `NO_ENTITY` | No entity in the knowledge base fits | You add it (phase 2: guided) |
+| `CHANGE_API` | An existing API changes: add or remove an attribute | Impact analysis, then the same spec flow |
 | `NO_MAPPING` | The entity has no data mapping | You add it to `data.yaml` |
-| `UNSUPPORTED` | No factory handles this task | Out of scope for now |
+| `UNSUPPORTED` | No factory, or no kind, handles this task | Out of scope for now |
 
 ## Factory layout
 
 ```
 src/harness/factories/crud-api/
-├── factory.yaml        # name, description, examples (for the router), operations, packs
+├── factory.yaml        # name, description, examples (for the router), packs
 ├── technical.yaml      # operations → kinds, API rules, components, askable facts, flow
 ├── checks.pl           # factory-specific logic checks
 ├── templates/
@@ -220,7 +253,8 @@ src/harness/factories/crud-api/
 name: crud-api
 description: "Create, read, update and delete records of an entity through a REST API"
 examples: ["Add a new book", "List books by author", "Change a book's price", "Remove a review"]
-operations: [create, read, update, delete]
+technical: technical.yaml
+checks: checks.pl
 packs: [python-fastapi]
 ```
 
@@ -229,6 +263,5 @@ packs: [python-fastapi]
 | Item | Where it fits |
 |---|---|
 | LLM-guided design of new entities, considering the existing domain model | A **domain-model factory** whose output is domain knowledge |
-| Lifecycle transitions, linking aggregations | New operations or a separate factory |
 | REST APIs and document stores as data sources | New source-type plugins |
 | Agent-driven runs from Claude Code, Codex, Copilot | Platform, using the same spec |

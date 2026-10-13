@@ -69,12 +69,14 @@ associations:
 
   collection_books:
     kind: aggregation
+    description: "Books placed in a curated collection"
     parent: Collection
     child: Book
     cardinality: many_to_many
 
   book_publisher:
     kind: aggregation
+    description: "Which publisher publishes a book"
     parent: Publisher
     child: Book
     cardinality: one_to_many

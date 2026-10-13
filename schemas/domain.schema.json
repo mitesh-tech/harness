@@ -26,6 +26,19 @@
           "title": "Kind",
           "type": "string"
         },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
         "parent": {
           "pattern": "^[A-Z][A-Za-z0-9]*$",
           "title": "Parent",

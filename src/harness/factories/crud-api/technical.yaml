@@ -136,6 +136,35 @@ kinds:
     names_as: "remove_{target}_from_{entity}"
     target: association
 
+# ── Operations: the broad question SemIf answers before the kind ────
+# Each kind belongs to exactly one operation. Which of an operation's kinds
+# are offered depends on the target (an entity, or a connection between
+# entities) and, for kinds that accept moves, on the entity having a
+# lifecycle (offered_kind/4 in core.pl). When several remain, SemIf is
+# asked `question`.
+operations:
+  create:
+    description: "Make something new, or connect two things that already exist"
+    examples: ["add", "create", "register", "put into", "set the"]
+    kinds: [create, link]
+
+  read:
+    description: "Look at things without changing them"
+    examples: ["view", "show", "list", "search", "find"]
+    kinds: [read_one, query]
+    question: "Is this about one specific item, or a list of items?"
+
+  update:
+    description: "Change something that already exists"
+    examples: ["edit", "change", "correct", "replace", "archive", "approve"]
+    kinds: [update, replace, transition]
+    question: "Does this change a few details, replace all the details, or move it to another stage of its life (like archive or approve)?"
+
+  delete:
+    description: "Remove something, or disconnect two things"
+    examples: ["delete", "remove", "take out of"]
+    kinds: [delete, unlink]
+
 # ── Components a design can include ─────────────────────────────────
 components:
   serialization:       { description: "Turn stored data into the response shape" }

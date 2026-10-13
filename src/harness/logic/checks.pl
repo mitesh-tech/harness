@@ -46,3 +46,20 @@ problem(flow, S, flow_unreachable, []) :-
 problem(flow, S, flow_dead_end, []) :-
     flow_step(S),
     \+ ( flow_outcome(O), flow_reaches(S, O) ).
+
+% An operation must be usable on at least one target, or no task can use it.
+problem(operation, Op, operation_never_offered, []) :-
+    operation(Op),
+    \+ ( target(T, _), offered_kind(Op, T, _, _) ).
+
+% A service's kind must be one its operation offers for its target;
+% otherwise classification can never lead to it (e.g. a transition on an
+% entity without a lifecycle).
+problem(service, S, service_kind_not_offered, [K, T, Op]) :-
+    kind(S, K), service_target(S, T), operation_kind(Op, K),
+    \+ offered_kind(Op, T, K, _).
+
+% An entity and a connection must not share a name in Prolog (BookPublisher
+% and book_publisher are both book_publisher), or targets get mixed up.
+problem(entity, T, target_name_clash, []) :-
+    entity(T, _), association(T, _, _, _, _).

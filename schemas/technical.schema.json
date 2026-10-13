@@ -329,6 +329,68 @@
       "title": "Kind",
       "type": "object"
     },
+    "Operation": {
+      "additionalProperties": false,
+      "description": "A broad business operation (create, read, \u2026) that groups one or more kinds.\n\nSemIf answers the operation first; the kind follows from the target and, when\nseveral kinds are still possible, from `question`.",
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "examples": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Examples",
+          "type": "array"
+        },
+        "not": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Not"
+        },
+        "kinds": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Kinds",
+          "type": "array"
+        },
+        "question": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question"
+        }
+      },
+      "required": [
+        "description",
+        "examples",
+        "kinds"
+      ],
+      "title": "Operation",
+      "type": "object"
+    },
     "Outcome": {
       "additionalProperties": false,
       "properties": {
@@ -457,6 +519,17 @@
       "title": "Kinds",
       "type": "object"
     },
+    "operations": {
+      "maxProperties": 15,
+      "minProperties": 1,
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/Operation"
+        }
+      },
+      "title": "Operations",
+      "type": "object"
+    },
     "components": {
       "minProperties": 1,
       "patternProperties": {
@@ -491,6 +564,7 @@
   },
   "required": [
     "kinds",
+    "operations",
     "components",
     "rules",
     "classification"

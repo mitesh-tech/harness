@@ -153,6 +153,7 @@ class Entity(Model):
 
 class Association(Model):
     kind: Literal["composition", "aggregation"]
+    description: Text | None = None  # what the connection means; offered to SemIf
     parent: EntityName
     child: EntityName
     cardinality: Literal["one_to_many", "many_to_many"]
@@ -214,6 +215,20 @@ class Kind(Model):
                 f"{', '.join(sorted(unknown))}; allowed: {allowed}"
             )
         return self
+
+
+class Operation(Model):
+    """A broad business operation (create, read, …) that groups one or more kinds.
+
+    SemIf answers the operation first; the kind follows from the target and, when
+    several kinds are still possible, from `question`.
+    """
+
+    description: Text
+    examples: list[Text] = Field(min_length=1)
+    not_: Text | None = Field(default=None, alias="not")
+    kinds: list[SnakeName] = Field(min_length=1)
+    question: Text | None = None
 
 
 class Component(Model):
@@ -284,6 +299,7 @@ class ClassificationFlow(Model):
 
 class Technical(Model):
     kinds: dict[SnakeName, Kind] = Field(min_length=1, max_length=MAX_OPTIONS)
+    operations: dict[SnakeName, Operation] = Field(min_length=1, max_length=MAX_OPTIONS)
     components: dict[SnakeName, Component] = Field(min_length=1)
     rules: list[Rule] = Field(min_length=1)
     askable: dict[SnakeName, Text] = Field(default_factory=dict)
@@ -294,6 +310,7 @@ class TechnicalOverride(Model):
     """A project's .harness/factories/<name>/technical.yaml: replaces or adds to the factory's."""
 
     kinds: dict[SnakeName, Kind] = Field(default_factory=dict)
+    operations: dict[SnakeName, Operation] = Field(default_factory=dict)
     components: dict[SnakeName, Component] = Field(default_factory=dict)
     rules: list[Rule] = Field(default_factory=list)
     askable: dict[SnakeName, Text] = Field(default_factory=dict)
