@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from conftest import BOOKSTORE, SEMIF_URL, edit
+from conftest import BOOKSTORE, SEMIF_URL, edit, factory_override
 from typer.testing import CliRunner
 
 import harness.cli
@@ -183,7 +183,7 @@ def test_cli_semif_check(cli_model):
 
 
 def override_flow(project: Path, steps_yaml: str, start="area") -> None:
-    (project / ".harness/technical.yaml").write_text(
+    factory_override(project).write_text(
         "classification:\n"
         f"  start: {start}\n"
         "  low_confidence: unsure\n"

@@ -10,7 +10,9 @@ so each derived decision carries its own proof.
 
 import re
 from collections import defaultdict
+from collections.abc import Sequence
 from importlib import resources
+from pathlib import Path
 
 from harness.knowledge.schema import Condition, Domain, Outcome, Technical
 
@@ -126,10 +128,12 @@ def compile_knowledge(domain: Domain, technical: Technical) -> str:
     return "\n".join(header) + program.render()
 
 
-def library() -> str:
-    """The fixed Prolog that ships with the harness: core decisions and logic checks."""
+def library(factory_checks: Sequence[Path] = ()) -> str:
+    """The fixed Prolog: platform core decisions and checks, then each factory's checks."""
     folder = resources.files("harness.logic")
-    return "\n".join((folder / name).read_text() for name in LIBRARY)
+    parts = [(folder / name).read_text() for name in LIBRARY]
+    parts += [path.read_text() for path in factory_checks]
+    return "\n".join(parts)
 
 
 def _domain_facts(p: Program, domain: Domain) -> None:

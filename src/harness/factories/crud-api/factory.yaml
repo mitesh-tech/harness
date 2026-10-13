@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../../../schemas/factory.schema.json
+#
+# The CRUD API factory: builds REST APIs that create, read, update and
+# delete the records of an entity. See docs/factories/crud-api.md.
+name: crud-api
+description: "Create, read, update and delete records of an entity through a REST API"
+examples:
+  - "Add a new book"
+  - "List books by author"
+  - "Change a book's price"
+  - "Remove a review"
+technical: technical.yaml
+checks: checks.pl
+packs: [python-fastapi]

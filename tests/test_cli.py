@@ -81,6 +81,7 @@ def test_kb_export_loads_in_swipl(tmp_path):
     )
     assert run.stdout == "post"
     assert run.stderr == ""  # loads without warnings
+    assert "composition_child_outside_parent" in out.read_text()  # the factory's checks
 
 
 def test_kb_commands_refuse_broken_knowledge(project):
