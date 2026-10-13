@@ -1,0 +1,54 @@
+{
+  "additionalProperties": false,
+  "description": "What a factory builds and where its knowledge lives.",
+  "properties": {
+    "name": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Name",
+      "type": "string"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "examples": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Examples",
+      "type": "array"
+    },
+    "technical": {
+      "default": "technical.yaml",
+      "minLength": 1,
+      "title": "Technical",
+      "type": "string"
+    },
+    "checks": {
+      "default": "checks.pl",
+      "minLength": 1,
+      "title": "Checks",
+      "type": "string"
+    },
+    "packs": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Packs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "description",
+    "examples",
+    "packs"
+  ],
+  "title": "FactoryManifest",
+  "type": "object"
+}

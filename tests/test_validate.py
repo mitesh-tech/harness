@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from conftest import BOOKSTORE, edit
+from conftest import BOOKSTORE, edit, factory_override
 
 from harness.knowledge.validate import validate_project
 
@@ -114,7 +114,7 @@ def test_composition_must_be_one_to_many(project: Path):
 
 
 def test_unknown_placeholder_in_names_as(project: Path):
-    (project / ".harness/technical.yaml").write_text(
+    factory_override(project).write_text(
         "kinds:\n"
         "  archive:\n"
         "    description: Archive it\n"
@@ -214,7 +214,7 @@ def test_unknown_area(project: Path):
 
 
 def test_project_override_replaces_a_default(project: Path):
-    (project / ".harness/technical.yaml").write_text(
+    factory_override(project).write_text(
         "kinds:\n"
         "  delete:\n"
         "    description: Remove something\n"
@@ -233,7 +233,7 @@ def test_project_override_replaces_a_default(project: Path):
 
 
 def test_override_rule_with_unknown_component_points_at_override(project: Path):
-    override = project / ".harness/technical.yaml"
+    override = factory_override(project)
     override.write_text(
         "rules:\n"
         "  - id: audit-writes\n"

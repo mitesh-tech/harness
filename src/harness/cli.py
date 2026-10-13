@@ -7,9 +7,10 @@ from typing import Annotated
 import typer
 
 from harness import __version__
+from harness.factories import FACTORIES_DIR
 from harness.knowledge.load import Problem
 from harness.knowledge.schema import SCHEMAS
-from harness.knowledge.validate import DEFAULT_TECHNICAL, Report, validate_project
+from harness.knowledge.validate import Report, validate_project
 
 app = typer.Typer(
     help="A model-agnostic AI harness for building backend APIs.",
@@ -96,7 +97,7 @@ def kb_export(
     from harness.logic.compile import compile_knowledge, library
 
     report = _valid_knowledge(project)
-    program = compile_knowledge(report.domain, report.technical) + "\n" + library()
+    program = compile_knowledge(report.domain, report.technical) + "\n" + library(_checks(report))
     if out is None:
         typer.echo(program, nl=False)
     else:
@@ -114,7 +115,7 @@ def kb_query(
 
     report = _valid_knowledge(project)
     try:
-        engine = Engine(report.domain, report.technical)
+        engine = Engine(report.domain, report.technical, _checks(report))
         answers = engine.query(goal.strip().removesuffix("."))
     except PrologUnavailable as exc:
         typer.echo(str(exc), err=True)
@@ -243,9 +244,15 @@ def _valid_knowledge(project: Path) -> Report:
     return report
 
 
+def _checks(report: Report) -> list[Path]:
+    """Each enabled factory's Prolog checks."""
+    return [f.checks for f in report.factories.values() if f.checks.is_file()]
+
+
 def _show(report: Report, path: Path) -> str:
-    if path == DEFAULT_TECHNICAL:
-        return "technical.yaml (harness default)"
+    if path.is_relative_to(FACTORIES_DIR):
+        name, *rest = path.relative_to(FACTORIES_DIR).parts
+        return f"factory {name} › {'/'.join(rest)}"
     if report.root and path.is_relative_to(report.root):
         return str(path.relative_to(report.root))
     return str(path)

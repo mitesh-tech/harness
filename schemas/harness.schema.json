@@ -47,6 +47,22 @@
       "title": "Knowledge",
       "type": "string"
     },
+    "factories": {
+      "anyOf": [
+        {
+          "items": {
+            "pattern": "^[a-z][a-z0-9-]*$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Factories"
+    },
     "semif": {
       "$ref": "#/$defs/SemIfSettings"
     }

@@ -1,19 +1,18 @@
 % ════════════════════════════════════════════════════════════════════
-% Logic checks (ships with the harness)
+% Platform logic checks (ship with the harness; apply to every factory)
 %
 % problem(Where, Name, Code, Args)
-%   Where: service | entity | association   Name: which one
-%   Code:  what is wrong                     Args: details for the message
+%   Where: service | entity | association | flow   Name: which one
+%   Code:  what is wrong                             Args: details for the message
 % No answers means the knowledge is consistent.
+%
+% Factories add their own problem/4 clauses in their checks.pl.
 % ════════════════════════════════════════════════════════════════════
 
-% ── Helpers ─────────────────────────────────────────────────────────
+:- multifile problem/4.
+:- discontiguous problem/4.
 
-% Parent is (directly or through a chain) composed of Child.
-% Tabling makes this recursion safe: it always finishes, even on a cycle.
-:- table composed_in/2.
-composed_in(Parent, Child) :- association(_, composition, Parent, Child, _).
-composed_in(Parent, Child) :- association(_, composition, Parent, X, _), composed_in(X, Child).
+% ── Helpers ─────────────────────────────────────────────────────────
 
 % A step of the classification flow can (directly or eventually) lead to another.
 :- table flow_reaches/2.
@@ -26,22 +25,6 @@ single_valued(persistence_target).
 single_valued(route).
 
 % ── Checks ──────────────────────────────────────────────────────────
-
-% A service that creates a composition child must do it within its parent.
-problem(service, S, composition_child_outside_parent, [E, P]) :-
-    kind(S, create), acts_on(S, E),
-    association(_, composition, P, E, _),
-    \+ within(S, _).
-
-% Deleting an entity that owns composition children must remove them too.
-problem(service, S, delete_parent_without_cascade, [E, C]) :-
-    kind(S, delete), acts_on(S, E),
-    association(_, composition, E, C, _),
-    \+ component(S, cascade_children, _).
-
-% An entity must not end up composed in itself.
-problem(entity, E, composition_cycle, []) :-
-    entity(E, _), composed_in(E, E).
 
 % Rules must not give one service two different values for a single-valued decision.
 problem(service, S, conflicting_decisions, [Decision, A, RuleA, B, RuleB]) :-

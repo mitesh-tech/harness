@@ -1,5 +1,5 @@
 import pytest
-from conftest import BOOKSTORE, edit
+from conftest import BOOKSTORE, edit, factory_override
 
 from harness.knowledge.validate import validate_project
 from harness.logic import engine as engine_module
@@ -146,7 +146,7 @@ def test_delete_parent_without_cascade(project):
         "  remove_book:\n    description: Remove a book\n    examples: [Delete a book]\n"
         "    kind: delete\n    acts_on: Book\n\n  # community",
     )
-    (project / ".harness/technical.yaml").write_text(
+    factory_override(project).write_text(
         "rules:\n"
         "  - id: composition-cascade\n"
         "    when: { kind: delete, parent_of_composition: true }\n"
@@ -182,7 +182,7 @@ def test_composition_cycle(project):
 
 
 def test_conflicting_decisions(project):
-    (project / ".harness/technical.yaml").write_text(
+    factory_override(project).write_text(
         "rules:\n"
         "  - id: transition-bad-request\n"
         "    when: { kind: transition }\n"

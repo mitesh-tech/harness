@@ -5,7 +5,9 @@ its own Prolog module, so engines never see each other's facts.
 """
 
 import itertools
+from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 from types import ModuleType
 
 from harness.knowledge.schema import Domain, Technical
@@ -43,20 +45,22 @@ MESSAGES = {
 
 @dataclass(frozen=True)
 class LogicProblem:
-    where: str  # service | entity | association
+    where: str  # service | entity | association | flow
     name: str  # the name as written in the YAML
     code: str
     message: str
 
 
 class Engine:
-    def __init__(self, domain: Domain, technical: Technical):
+    def __init__(self, domain: Domain, technical: Technical, factory_checks: Sequence[Path] = ()):
         self._janus = _janus()
         self.names = NameMap(domain)
         self.module = f"harness_kb_{next(_modules)}"
         self.program = compile_knowledge(domain, technical)
         self._janus.consult(f"{self.module}_knowledge", data=self.program, module=self.module)
-        self._janus.consult(f"{self.module}_library", data=library(), module=self.module)
+        self._janus.consult(
+            f"{self.module}_library", data=library(factory_checks), module=self.module
+        )
 
     def query(self, goal: str, inputs: dict | None = None) -> list[dict]:
         """All answers to `goal`, as dicts of variable bindings."""

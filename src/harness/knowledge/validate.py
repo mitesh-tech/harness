@@ -3,25 +3,26 @@
 Checks run in four layers, each only when the earlier ones pass:
     1. YAML syntax   2. shape (schemas)   3. references   4. logic (Prolog)
 
-Layers of technical knowledge, later ones replacing earlier entries:
-    harness default (ships with the harness) -> stack pack (not yet) -> project override
+Technical knowledge belongs to factories. For each enabled factory, later
+layers replace earlier entries:
+    the factory's technical.yaml -> stack pack (not yet) -> project override
+    (.harness/factories/<name>/technical.yaml)
 """
 
 from dataclasses import dataclass, field
-from importlib import resources
 from pathlib import Path
 
+from harness.factories import Factory, installed_factories
 from harness.knowledge import references
 from harness.knowledge.load import Problem, YamlFile, parse, read_yaml
 from harness.knowledge.schema import (
     Domain,
+    FactoryManifest,
     HarnessFile,
     Technical,
     TechnicalOverride,
 )
 from harness.project import PROJECT_FILE, find_project_file
-
-DEFAULT_TECHNICAL = Path(str(resources.files("harness.knowledge") / "technical.yaml"))
 
 
 @dataclass
@@ -33,12 +34,25 @@ class Checked:
 
 
 @dataclass
+class LoadedFactory:
+    """A factory with its manifest and its technical knowledge (project overrides applied)."""
+
+    factory: Factory
+    manifest: FactoryManifest
+    technical: Technical
+    origins: dict  # where each technical entry came from, for error lines
+    checks: Path
+
+
+@dataclass
 class Report:
     root: Path | None = None
     checked: list[Checked] = field(default_factory=list)
     problems: list[Problem] = field(default_factory=list)
     settings: HarnessFile | None = None
+    factories: dict[str, LoadedFactory] = field(default_factory=dict)
     domain: Domain | None = None
+    # Until the factory router exists, commands use the first enabled factory's knowledge.
     technical: Technical | None = None
     logic: str | None = None  # summary of layer 4, when it ran or was skipped
 
@@ -78,7 +92,8 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
     if settings is None:
         return report
     report.settings = settings
-    report.checked[-1].summary = f"pack {settings.pack}, knowledge in {settings.knowledge}/"
+    names = settings.factories if settings.factories is not None else list(installed_factories())
+    report.checked[-1].summary = f"pack {settings.pack}, factories: {', '.join(names) or 'none'}"
     report.problems.append(
         Problem(
             project_file,
@@ -101,37 +116,112 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
         )
         return report
 
-    technical, technical_files = _load_technical(report, knowledge_dir / "technical.yaml")
+    old_override = knowledge_dir / "technical.yaml"
+    if old_override.is_file():
+        report.problems.append(
+            Problem(
+                old_override,
+                (),
+                "project overrides now live per factory: move this file to "
+                f"{settings.knowledge}/factories/<factory>/technical.yaml",
+            )
+        )
+
+    for factory in _enabled_factories(report, project_file, names):
+        loaded = _load_factory(report, factory, knowledge_dir)
+        if loaded is not None:
+            report.factories[factory.name] = loaded
+
     domain = _load(report, Domain, knowledge_dir / "domain.yaml")
     if domain is not None:
         report.checked[-1].summary = (
             f"{len(domain.areas)} areas, {len(domain.entities)} entities, "
             f"{len(domain.associations)} associations, {len(domain.services)} services"
         )
-    report.domain, report.technical = domain, technical
+    primary = next(iter(report.factories.values()), None)
+    report.domain = domain
+    report.technical = primary.technical if primary else None
 
-    if technical is not None:
-        _attach(report, references.check_technical(technical), technical_files)
-    if domain is not None and technical is not None:
+    for loaded in report.factories.values():
+        _attach(report, references.check_technical(loaded.technical), loaded.origins)
+    if domain is not None and primary is not None:
         domain_file = _yaml_file(knowledge_dir / "domain.yaml")
-        _attach(report, references.check_domain(domain, technical), {(): domain_file})
+        _attach(report, references.check_domain(domain, primary.technical), {(): domain_file})
         if logic and report.ok:
-            flow_file = technical_files.get(("classification",)) or technical_files[()]
-            _check_logic(report, domain, technical, domain_file, flow_file, strict)
+            _check_logic(report, domain, primary, domain_file, strict)
     return report
+
+
+def _enabled_factories(report: Report, project_file: Path, names: list[str]) -> list[Factory]:
+    installed = installed_factories()
+    enabled = []
+    for index, name in enumerate(names):
+        if name in installed:
+            enabled.append(installed[name])
+        else:
+            known = ", ".join(installed) or "none"
+            report.problems.append(
+                Problem(
+                    project_file,
+                    ("factories", index),
+                    f"unknown factory '{name}' (installed: {known})",
+                    _line(project_file, ("factories", index)),
+                )
+            )
+    if not names:
+        report.problems.append(
+            Problem(
+                project_file,
+                ("factories",),
+                "no factory is enabled",
+                _line(project_file, ("factories",)),
+            )
+        )
+    return enabled
+
+
+def _load_factory(report: Report, factory: Factory, knowledge_dir: Path) -> LoadedFactory | None:
+    manifest = _load(report, FactoryManifest, factory.manifest_path)
+    if manifest is None:
+        return None
+    report.checked[-1].summary = f"packs: {', '.join(manifest.packs)}"
+    manifest_file = _yaml_file(factory.manifest_path)
+    if manifest.name != factory.name:
+        report.problems.append(
+            manifest_file.problem(
+                ("name",), f"name '{manifest.name}' must match the folder name '{factory.name}'"
+            )
+        )
+    for field_name in ("technical", "checks"):
+        if not (factory.root / getattr(manifest, field_name)).is_file():
+            report.problems.append(
+                manifest_file.problem(
+                    (field_name,),
+                    f"file '{getattr(manifest, field_name)}' not found in the factory",
+                )
+            )
+    if not (factory.root / manifest.technical).is_file():
+        return None
+    override = knowledge_dir / "factories" / factory.name / "technical.yaml"
+    technical, origins = _load_technical(report, factory.root / manifest.technical, override)
+    if technical is None:
+        return None
+    return LoadedFactory(factory, manifest, technical, origins, factory.root / manifest.checks)
 
 
 LOGIC_PATHS = {"service": "services", "entity": "entities", "association": "associations"}
 
 
 def _check_logic(
-    report: Report, domain, technical, domain_file: YamlFile, flow_file: YamlFile, strict: bool
+    report: Report, domain, primary: LoadedFactory, domain_file: YamlFile, strict: bool
 ) -> None:
     """Layer 4: load the knowledge into Prolog and ask the logic checks."""
     from harness.logic.engine import Engine, PrologUnavailable
 
+    flow_file = primary.origins.get(("classification",)) or primary.origins[()]
+    checks = [f.checks for f in report.factories.values() if f.checks.is_file()]
     try:
-        engine = Engine(domain, technical)
+        engine = Engine(domain, primary.technical, checks)
     except PrologUnavailable as exc:
         report.logic = "skipped"
         severity = "error" if strict else "warning"
@@ -162,16 +252,16 @@ def _load(report: Report, model, path: Path):
     return obj
 
 
-def _load_technical(report: Report, override_path: Path):
-    """Merge the harness default with the project's override, remembering where each came from."""
-    default = _load(report, Technical, DEFAULT_TECHNICAL)
+def _load_technical(report: Report, factory_path: Path, override_path: Path):
+    """Merge a factory's technical knowledge with the project's override, remembering origins."""
+    default = _load(report, Technical, factory_path)
     if default is None:
         return None, {}
     report.checked[-1].summary = (
         f"{len(default.kinds)} kinds, {len(default.rules)} rules, "
         f"{len(default.components)} components, {len(default.askable)} askable facts"
     )
-    default_file = _yaml_file(DEFAULT_TECHNICAL)
+    default_file = _yaml_file(factory_path)
     origins: dict[tuple, YamlFile] = {(): default_file}
     if not override_path.is_file():
         return default, origins

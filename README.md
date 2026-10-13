@@ -53,11 +53,17 @@ A project links to the harness with a `harness.yaml` at its root and keeps its k
 
 ```
 my-project/
-├── harness.yaml          # which stack pack, where the knowledge lives
+├── harness.yaml          # which stack pack and factories, where the knowledge lives
 └── .harness/
     ├── domain.yaml       # areas, entities, associations, services (business language)
-    └── technical.yaml    # optional: overrides the harness's general technical knowledge
+    └── factories/
+        └── crud-api/
+            └── technical.yaml   # optional: overrides the factory's technical knowledge
 ```
+
+### Factories
+
+The harness is a platform of small software factories, each good at one kind of task (see [docs/factories/crud-api.md](docs/factories/crud-api.md)). A factory lives in [src/harness/factories/](src/harness/factories/) as a folder with a `factory.yaml` manifest (name, description, examples, stack packs), its technical knowledge (`technical.yaml`) and its own Prolog checks (`checks.pl`). The first one is `crud-api`. A project enables factories with `factories: [crud-api]` in `harness.yaml`; without that list, every installed factory is enabled.
 
 Check a project's knowledge files:
 
@@ -126,7 +132,7 @@ uv run harness classify "Let staff add a new publisher" --project examples/books
 Outcome   NEW_SERVICE: catalogue › create › Publisher
 ```
 
-SemIf answers one question at a time, choosing only among options from the knowledge base. The order of questions is configuration (`classification:` in [technical.yaml](src/harness/knowledge/technical.yaml)): area, then service; when no service fits, the kind of operation and the entity (or, for link/unlink, the association). Answers below the threshold stop with `UNSURE` so a person decides. Exit codes: `0` matched or new service, `2` needs a person, `1` error. Use `-v` to see exactly what SemIf reads, `--json` for machine-readable output.
+SemIf answers one question at a time, choosing only among options from the knowledge base. The order of questions is configuration (`classification:` in [technical.yaml](src/harness/factories/crud-api/technical.yaml)): area, then service; when no service fits, the kind of operation and the entity (or, for link/unlink, the association). Answers below the threshold stop with `UNSURE` so a person decides. Exit codes: `0` matched or new service, `2` needs a person, `1` error. Use `-v` to see exactly what SemIf reads, `--json` for machine-readable output.
 
 Tests replay real SemIf answers recorded in `tests/recordings/`, so they run without the server. Re-record after changing the knowledge base or the questions: `uv run pytest --record-semif` (with SemIf running).
 

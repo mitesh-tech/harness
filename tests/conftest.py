@@ -45,6 +45,13 @@ def project(tmp_path: Path) -> Path:
     return root
 
 
+def factory_override(project: Path, factory: str = "crud-api") -> Path:
+    """Where a project overrides a factory's technical knowledge (folder created)."""
+    path = project / ".harness" / "factories" / factory / "technical.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def edit(path: Path, old: str, new: str) -> None:
     text = path.read_text()
     assert old in text, f"{old!r} not found in {path.name}"

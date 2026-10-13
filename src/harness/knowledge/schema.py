@@ -1,4 +1,4 @@
-"""Shapes of the knowledge files: harness.yaml, domain.yaml and technical.yaml.
+"""Shapes of the knowledge files: harness.yaml, factory.yaml, domain.yaml and technical.yaml.
 
 These models check one file at a time (fields, types, allowed values).
 Checks that span several entries or files live in `references.py`.
@@ -59,7 +59,22 @@ class HarnessFile(Model):
     version: Literal[1]
     pack: KebabName
     knowledge: Text = ".harness"
+    factories: list[KebabName] | None = None  # None: every installed factory
     semif: SemIfSettings = Field(default_factory=SemIfSettings)
+
+
+# ── factory.yaml ────────────────────────────────────────────────────
+
+
+class FactoryManifest(Model):
+    """What a factory builds and where its knowledge lives."""
+
+    name: KebabName
+    description: Text
+    examples: list[Text] = Field(min_length=1)
+    technical: Text = "technical.yaml"
+    checks: Text = "checks.pl"
+    packs: list[KebabName] = Field(min_length=1)
 
 
 # ── domain.yaml ─────────────────────────────────────────────────────
@@ -276,7 +291,7 @@ class Technical(Model):
 
 
 class TechnicalOverride(Model):
-    """A project's .harness/technical.yaml: entries here replace or add to the defaults."""
+    """A project's .harness/factories/<name>/technical.yaml: replaces or adds to the factory's."""
 
     kinds: dict[SnakeName, Kind] = Field(default_factory=dict)
     components: dict[SnakeName, Component] = Field(default_factory=dict)
@@ -287,6 +302,7 @@ class TechnicalOverride(Model):
 
 SCHEMAS: dict[str, type[Model]] = {
     "harness": HarnessFile,
+    "factory": FactoryManifest,
     "domain": Domain,
     "technical": Technical,
     "technical-override": TechnicalOverride,

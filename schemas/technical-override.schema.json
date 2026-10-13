@@ -445,7 +445,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "A project's .harness/technical.yaml: entries here replace or add to the defaults.",
+  "description": "A project's .harness/factories/<name>/technical.yaml: replaces or adds to the factory's.",
   "properties": {
     "kinds": {
       "patternProperties": {

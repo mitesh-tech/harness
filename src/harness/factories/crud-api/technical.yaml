@@ -1,8 +1,8 @@
-# yaml-language-server: $schema=../../../schemas/technical.schema.json
+# yaml-language-server: $schema=../../../../schemas/technical.schema.json
 #
 # General technical knowledge: how backend services are built.
 # Ships with the harness and applies to every project; stack packs and
-# projects can override entries (a project uses .harness/technical.yaml).
+# projects can override entries (a project uses .harness/factories/crud-api/technical.yaml).
 #
 # For each kind:
 #   description / examples / not  -> business words SemIf matches against
