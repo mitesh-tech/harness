@@ -190,6 +190,36 @@ class Domain(Model):
     services: dict[SnakeName, Service] = Field(min_length=1)
 
 
+# ── .harness/evals/classify.yaml ────────────────────────────────────
+
+
+class EvalExpect(Model):
+    """What a good classification of the task looks like, and how it should get there."""
+
+    outcome: SnakeName | list[SnakeName]  # a list: any of these is acceptable
+    answers: dict[SnakeName, Text] = Field(default_factory=dict)  # step -> answer
+    path: list[SnakeName] | None = None  # the steps, in order
+    not_asked: list[SnakeName] = Field(default_factory=list)
+    semif_calls: StrictInt | None = Field(default=None, ge=0)  # at most
+    note: Text | None = None
+
+    @property
+    def outcomes(self) -> list[str]:
+        return self.outcome if isinstance(self.outcome, list) else [self.outcome]
+
+
+class EvalCase(Model):
+    task: Text
+    group: KebabName | None = None  # paraphrases: same path and answers across the group
+    expect: EvalExpect
+
+
+class ClassifyEvals(Model):
+    """A project's classification eval cases: tasks and what should happen."""
+
+    cases: list[EvalCase] = Field(min_length=1)
+
+
 # ── technical.yaml ──────────────────────────────────────────────────
 
 
@@ -323,4 +353,5 @@ SCHEMAS: dict[str, type[Model]] = {
     "domain": Domain,
     "technical": Technical,
     "technical-override": TechnicalOverride,
+    "classify-evals": ClassifyEvals,
 }

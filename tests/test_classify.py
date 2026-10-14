@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-import yaml
 from conftest import BOOKSTORE, SEMIF_URL, edit, factory_override
 from typer.testing import CliRunner
 
@@ -9,11 +8,13 @@ import harness.cli
 from harness.classify.questions import OPTION_SOURCES
 from harness.classify.walk import classify
 from harness.cli import app
+from harness.evals import check_case
 from harness.knowledge.validate import validate_project
 from harness.semif.client import NONE, NONE_OPTION, DecisionModelError, Option, Question
 from harness.semif.http import SemIfHttp
+from harness.trace import Trace
 
-TASKS = yaml.safe_load((Path(__file__).parent / "classify_tasks.yaml").read_text())
+CASES = validate_project(BOOKSTORE, logic=False).evals.cases
 runner = CliRunner()
 
 
@@ -100,33 +101,33 @@ def test_unreachable_server_has_a_clear_message():
 # ── Classifying real tasks (recorded SemIf answers) ─────────────────
 
 
-@pytest.mark.parametrize("case", TASKS, ids=[c["task"] for c in TASKS])
+@pytest.mark.parametrize("case", CASES, ids=[c.task for c in CASES])
 def test_classification(bookstore, model, case):
-    result = classify(case["task"], bookstore.domain, bookstore.technical, model, 0.8)
-    expect = dict(case["expect"])
-    outcomes = expect.pop("outcome")
-    outcomes = outcomes if isinstance(outcomes, list) else [outcomes]
-    assert result.outcome in outcomes, _explain(result)
-    for key, value in expect.items():
-        assert result.answers.get(key) == value, _explain(result)
+    trace = classify(case.task, bookstore.domain, bookstore.technical, model, 0.8)
+    result = check_case(case, trace)
+    assert result.passed, _explain(result)
     # every step is recorded with its question, options, answer and confidence
-    for step in result.steps:
-        assert step.options[-1] == NONE and step.answer in step.options
-        assert 0.0 <= step.confidence <= 1.0
-        assert step.accepted == (step.confidence >= 0.8)
+    for event in trace.events:
+        assert event.by == "semif" and event.stage == "classify"
+        assert event.options[-1] == NONE and event.answer in event.options
+        assert 0.0 <= event.confidence <= 1.0
+        assert 0.0 <= event.margin <= 1.0
+        assert event.accepted == (event.confidence >= 0.8)
 
 
 def test_strict_threshold_turns_answers_into_unsure(bookstore, model):
-    result = classify("Add a new book", bookstore.domain, bookstore.technical, model, 1.0)
-    assert result.outcome == "unsure"
-    assert [s.id for s in result.steps] == ["area"]
+    trace = classify("Add a new book", bookstore.domain, bookstore.technical, model, 1.0)
+    assert trace.outcome == "unsure"
+    assert trace.path == ["area"]
 
 
 def _explain(result) -> str:
-    lines = [f"task: {result.task}  →  {result.outcome}"]
-    for s in result.steps:
-        top = sorted(s.probabilities.items(), key=lambda kv: -kv[1])[:3]
-        lines.append(f"  {s.id}: {s.answer} ({s.confidence:.2f}) top: {top}")
+    lines = [f"task: {result.case.task}  →  {result.trace.outcome}"]
+    lines.append(f"first wrong step: {result.first_wrong}")
+    lines += result.failures
+    for e in result.trace.events:
+        top = sorted(e.probabilities.items(), key=lambda kv: -kv[1])[:3]
+        lines.append(f"  {e.step}: {e.answer} ({e.confidence:.2f}) top: {top}")
     return "\n".join(lines)
 
 
@@ -160,6 +161,50 @@ def test_cli_classify_json(cli_model):
     data = __import__("json").loads(result.output)
     assert data["outcome"] == "matched"
     assert data["answers"] == {"area": "catalogue", "service": "add_book"}
+    assert [e["step"] for e in data["events"]] == ["area", "service"]
+    assert data["semif_calls"] == 2
+
+
+def test_cli_classify_trace(cli_model, tmp_path):
+    out = tmp_path / "trace.jsonl"
+    result = runner.invoke(
+        app,
+        [
+            "classify",
+            "Let staff add a new publisher",
+            "-p",
+            str(BOOKSTORE),
+            "--trace",
+            "--trace-out",
+            str(out),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "question: Which area of the business does this task belong to?" in result.output
+    assert "(4 SemIf calls," in result.output
+    trace = Trace.from_jsonl(out.read_text())
+    assert trace.outcome == "new_service"
+    assert trace.path == ["area", "service", "kind", "entity"]
+    assert trace.url == SEMIF_URL
+
+
+def test_cli_eval_classify(cli_model):
+    result = runner.invoke(app, ["eval", "classify", "-p", str(BOOKSTORE)])
+    assert result.exit_code == 0, result.output
+    assert "8/8 cases passed" in result.output
+
+
+def test_cli_eval_classify_reports_the_first_wrong_step(cli_model, project):
+    edit(
+        project / ".harness/evals/classify.yaml",
+        "answers: { area: community, service: add_review }",
+        "answers: { area: catalogue, service: add_review }",
+    )
+    result = runner.invoke(app, ["eval", "classify", "-p", str(project)])
+    assert result.exit_code == 1
+    assert "✗ Readers should be able to rate a book from 1 to 5" in result.output
+    assert "first wrong step: area: expected catalogue, got community (1.00" in result.output
+    assert "7/8 cases passed" in result.output
 
 
 def test_cli_classify_semif_down(monkeypatch):
@@ -183,6 +228,8 @@ def test_cli_semif_check(cli_model):
 
 
 def override_flow(project: Path, steps_yaml: str, start="area") -> None:
+    # Bookstore's eval cases are written for the real flow; this test flow has other steps
+    (project / ".harness/evals/classify.yaml").unlink()
     factory_override(project).write_text(
         "classification:\n"
         f"  start: {start}\n"
