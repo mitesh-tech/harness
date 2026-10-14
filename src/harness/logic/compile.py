@@ -31,6 +31,7 @@ FACTS = [
     "lifecycle/3",
     "transition_allowed/3",
     "association/5",
+    "association_description/2",
     "service/1",
     "kind/2",
     "acts_on/2",
@@ -43,6 +44,9 @@ FACTS = [
     "kind_persistence/2",
     "kind_status/2",
     "kind_target/2",
+    "kind_accepts/2",
+    "operation/1",
+    "operation_kind/2",
     "component_known/1",
     "askable/1",
     "fact/2",
@@ -163,6 +167,11 @@ def _domain_facts(p: Program, domain: Domain) -> None:
             f"association({atom(name)}, {a.kind}, {atom(snake(a.parent))}, "
             f"{atom(snake(a.child))}, {a.cardinality}).",
         )
+        if a.description:
+            p.add(
+                "association_description/2",
+                f"association_description({atom(name)}, {atom(a.description)}).",
+            )
     for name, s in domain.services.items():
         sv = atom(name)
         p.add("service/1", f"service({sv}).")
@@ -188,6 +197,13 @@ def _technical_facts(p: Program, technical: Technical) -> None:
         p.add("kind_persistence/2", f"kind_persistence({k}, {atom(kind.persistence)}).")
         p.add("kind_status/2", f"kind_status({k}, {kind.status}).")
         p.add("kind_target/2", f"kind_target({k}, {kind.target}).")
+        for accepted in kind.accepts:
+            p.add("kind_accepts/2", f"kind_accepts({k}, {accepted}).")
+    for name, operation in technical.operations.items():
+        o = atom(name)
+        p.add("operation/1", f"operation({o}).")
+        for kind_name in operation.kinds:
+            p.add("operation_kind/2", f"operation_kind({o}, {atom(kind_name)}).")
     for name in technical.components:
         p.add("component_known/1", f"component_known({atom(name)}).")
     for name in technical.askable:

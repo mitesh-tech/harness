@@ -65,6 +65,12 @@ my-project/
 
 The harness is a platform of small software factories, each good at one kind of task (see [docs/factories/crud-api.md](docs/factories/crud-api.md)). A factory lives in [src/harness/factories/](src/harness/factories/) as a folder with a `factory.yaml` manifest (name, description, examples, stack packs), its technical knowledge (`technical.yaml`) and its own Prolog checks (`checks.pl`). The first one is `crud-api`. A project enables factories with `factories: [crud-api]` in `harness.yaml`; without that list, every installed factory is enabled.
 
+In `crud-api`, a task acts on a **target** (an entity, or a connection between entities) through an **operation** (create, read, update, delete). The kind of API follows from both; Prolog derives it with a reason:
+
+```bash
+uv run harness kb query "offered_kind(update, book, K, Why)" --project examples/bookstore
+```
+
 Check a project's knowledge files:
 
 ```bash

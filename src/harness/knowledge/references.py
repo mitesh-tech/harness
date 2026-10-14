@@ -28,6 +28,7 @@ def check_domain(domain: Domain, technical: Technical) -> Iterator[Finding]:
     yield from _check_associations(domain)
     yield from _check_services(domain, technical)
     yield from _check_area_sizes(domain)
+    yield from _check_target_count(domain)
 
 
 def _check_entities(domain: Domain) -> Iterator[Finding]:
@@ -213,6 +214,19 @@ def _check_area_sizes(domain: Domain) -> Iterator[Finding]:
                 )
 
 
+def _check_target_count(domain: Domain) -> Iterator[Finding]:
+    """Entities and aggregations are what a task acts on; SemIf chooses among all of them."""
+    aggregations = [n for n, a in domain.associations.items() if a.kind == "aggregation"]
+    count = len(domain.entities) + len(aggregations)
+    if count > MAX_OPTIONS:
+        yield (
+            ("entities",),
+            f"{len(domain.entities)} entities and {len(aggregations)} aggregations give "
+            f"{count} targets; classification can offer at most {MAX_OPTIONS}",
+            "error",
+        )
+
+
 def check_technical(technical: Technical) -> Iterator[Finding]:
     seen: dict[str, int] = {}
     used_facts: set[str] = set()
@@ -264,7 +278,48 @@ def check_technical(technical: Technical) -> Iterator[Finding]:
                     "warning",
                 )
 
+    yield from _check_operations(technical)
     yield from _check_flow(technical.classification)
+
+
+def _check_operations(technical: Technical) -> Iterator[Finding]:
+    """Every kind belongs to exactly one operation, so the operation leads to its kind."""
+    owner: dict[str, str] = {}
+    for name, operation in technical.operations.items():
+        at = ("operations", name)
+        for kind in operation.kinds:
+            if kind not in technical.kinds:
+                yield (
+                    at + ("kinds",),
+                    f"unknown kind '{kind}' (known: {_known(technical.kinds)})",
+                    "error",
+                )
+            elif kind in owner:
+                yield (
+                    at + ("kinds",),
+                    f"kind '{kind}' is already in operation '{owner[kind]}'; "
+                    "a kind belongs to exactly one operation",
+                    "error",
+                )
+            else:
+                owner[kind] = name
+        targets = Counter(
+            technical.kinds[k].target for k in set(operation.kinds) if k in technical.kinds
+        )
+        if operation.question is None and any(n > 1 for n in targets.values()):
+            yield (
+                at,
+                "several kinds act on the same target; add a 'question' that tells them apart",
+                "error",
+            )
+    for kind in technical.kinds:
+        if kind not in owner:
+            yield (
+                ("kinds", kind),
+                f"kind '{kind}' is in no operation, so no task can reach it "
+                f"(operations: {_known(technical.operations)})",
+                "error",
+            )
 
 
 def _check_flow(flow) -> Iterator[Finding]:

@@ -234,6 +234,10 @@ def _check_logic(
         if problem.where == "flow":
             path = ("classification", "steps", problem.name)
             report.problems.append(flow_file.problem(path, problem.message))
+        elif problem.where == "operation":
+            path = ("operations", problem.name)
+            origin = primary.origins.get(path) or primary.origins[()]
+            report.problems.append(origin.problem(path, problem.message))
         else:
             path = (LOGIC_PATHS[problem.where], problem.name)
             report.problems.append(domain_file.problem(path, problem.message))
@@ -258,7 +262,8 @@ def _load_technical(report: Report, factory_path: Path, override_path: Path):
     if default is None:
         return None, {}
     report.checked[-1].summary = (
-        f"{len(default.kinds)} kinds, {len(default.rules)} rules, "
+        f"{len(default.kinds)} kinds, {len(default.operations)} operations, "
+        f"{len(default.rules)} rules, "
         f"{len(default.components)} components, {len(default.askable)} askable facts"
     )
     default_file = _yaml_file(factory_path)
@@ -273,7 +278,7 @@ def _load_technical(report: Report, factory_path: Path, override_path: Path):
     override_file = _yaml_file(override_path)
 
     merged = default.model_copy(deep=True)
-    for section in ("kinds", "components", "askable"):
+    for section in ("kinds", "operations", "components", "askable"):
         entries = getattr(override, section)
         getattr(merged, section).update(entries)
         for name in entries:
