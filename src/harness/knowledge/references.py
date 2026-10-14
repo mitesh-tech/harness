@@ -6,7 +6,7 @@ Each check yields (path, message, severity). The caller attaches the file and li
 from collections import Counter
 from collections.abc import Iterator
 
-from harness.knowledge.schema import KIND_TARGETS, MAX_OPTIONS, Domain, Technical
+from harness.knowledge.schema import KIND_TARGETS, MAX_OPTIONS, ClassifyEvals, Domain, Technical
 
 Finding = tuple[tuple[str | int, ...], str, str]
 
@@ -366,3 +366,65 @@ def _check_flow(flow) -> Iterator[Finding]:
                     f"(steps: {_known(flow.steps)}; outcomes: {_known(flow.outcomes)})",
                     "error",
                 )
+
+
+def option_names(source: str, domain: Domain, technical: Technical) -> set[str]:
+    """Every name a classification step with this option source can answer."""
+    aggregations = {n for n, a in domain.associations.items() if a.kind == "aggregation"}
+    return {
+        "areas": set(domain.areas),
+        "services_in_area": set(domain.services),
+        "kinds": set(technical.kinds),
+        "entities_in_area": set(domain.entities),
+        "aggregations_in_area": aggregations,
+    }[source]
+
+
+def check_evals(evals: ClassifyEvals, domain: Domain, technical: Technical) -> Iterator[Finding]:
+    """Eval cases name outcomes, steps and answers that exist."""
+    flow = technical.classification
+    groups = Counter(case.group for case in evals.cases if case.group)
+    for index, case in enumerate(evals.cases):
+        at = ("cases", index, "expect")
+        expect = case.expect
+        for outcome in expect.outcomes:
+            if outcome not in flow.outcomes:
+                yield (
+                    at + ("outcome",),
+                    f"unknown outcome '{outcome}' (outcomes: {_known(flow.outcomes)})",
+                    "error",
+                )
+        for field in ("path", "not_asked"):
+            for step in getattr(expect, field) or []:
+                if step not in flow.steps:
+                    yield (
+                        at + (field,),
+                        f"unknown step '{step}' (steps: {_known(flow.steps)})",
+                        "error",
+                    )
+        for step, answer in expect.answers.items():
+            if step not in flow.steps:
+                yield (
+                    at + ("answers", step),
+                    f"unknown step '{step}' (steps: {_known(flow.steps)})",
+                    "error",
+                )
+            elif answer not in option_names(flow.steps[step].options, domain, technical):
+                yield (
+                    at + ("answers", step),
+                    f"'{answer}' is not a possible answer for step '{step}'",
+                    "error",
+                )
+        both = set(expect.path or []) & set(expect.not_asked)
+        if both:
+            yield (
+                at + ("not_asked",),
+                f"step(s) {', '.join(sorted(both))} are both in path and in not_asked",
+                "error",
+            )
+        if case.group and groups[case.group] == 1:
+            yield (
+                ("cases", index, "group"),
+                f"group '{case.group}' has only one case; paraphrases are compared in a group",
+                "warning",
+            )

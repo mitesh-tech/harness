@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "EvalCase": {
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "minLength": 1,
+          "title": "Task",
+          "type": "string"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "expect": {
+          "$ref": "#/$defs/EvalExpect"
+        }
+      },
+      "required": [
+        "task",
+        "expect"
+      ],
+      "title": "EvalCase",
+      "type": "object"
+    },
+    "EvalExpect": {
+      "additionalProperties": false,
+      "description": "What a good classification of the task looks like, and how it should get there.",
+      "properties": {
+        "outcome": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "answers": {
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "title": "Answers",
+          "type": "object"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "not_asked": {
+          "items": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "title": "Not Asked",
+          "type": "array"
+        },
+        "semif_calls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Semif Calls"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "title": "EvalExpect",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A project's classification eval cases: tasks and what should happen.",
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/EvalCase"
+      },
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    }
+  },
+  "required": [
+    "cases"
+  ],
+  "title": "ClassifyEvals",
+  "type": "object"
+}

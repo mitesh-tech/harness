@@ -19,9 +19,13 @@ app = typer.Typer(
 schema_app = typer.Typer(help="Work with the schemas of the knowledge files.", no_args_is_help=True)
 kb_app = typer.Typer(help="Work with a project's knowledge as Prolog.", no_args_is_help=True)
 semif_app = typer.Typer(help="Work with the decision model (SemIf).", no_args_is_help=True)
+eval_app = typer.Typer(
+    help="Check the harness against a project's eval cases.", no_args_is_help=True
+)
 app.add_typer(schema_app, name="schema")
 app.add_typer(kb_app, name="kb")
 app.add_typer(semif_app, name="semif")
+app.add_typer(eval_app, name="eval")
 
 EXIT_CODES = {"matched": 0, "new_service": 0, "unsure": 2, "no_entity": 2}
 
@@ -143,59 +147,70 @@ def classify(
     verbose: Annotated[
         bool, typer.Option("--verbose", "-v", help="Also show what SemIf reads for each option.")
     ] = False,
-    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
+    show_trace: Annotated[
+        bool,
+        typer.Option("--trace", help="Show every step: question, each option's probability, time."),
+    ] = False,
+    trace_out: Annotated[
+        Path | None, typer.Option("--trace-out", help="Write the trace to this file (JSONL).")
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the trace as JSON.")] = False,
 ) -> None:
     """Ask SemIf which area and service a task belongs to (or which kind and entity)."""
     from harness.classify.questions import OPTION_SOURCES
-    from harness.classify.walk import classify as run_classification
-    from harness.semif.client import NONE_OPTION, DecisionModelError
+    from harness.semif.client import NONE_OPTION
 
     report = _valid_knowledge(project)
     settings = report.settings.semif
-    try:
-        result = run_classification(
-            task, report.domain, report.technical, make_model(report), settings.threshold
-        )
-    except DecisionModelError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
+    trace = _classify(report, task)
+    if trace_out is not None:
+        trace_out.write_text(trace.to_jsonl())
 
     if as_json:
-        typer.echo(json.dumps(result.to_dict(), indent=2))
-        raise typer.Exit(EXIT_CODES.get(result.outcome, 2))
+        typer.echo(json.dumps(trace.to_dict(), indent=2))
+        raise typer.Exit(EXIT_CODES.get(trace.outcome, 2))
 
     typer.echo(f"Task      {task}")
     typer.echo(f"SemIf     {settings.url}, threshold {settings.threshold:g}")
     typer.echo("")
+    typer.echo(f"  {'step':<12} {'by':<6} {'answer':<24} {'conf':>5} {'margin':>7}")
     answers: dict[str, str] = {}
-    for step in result.steps:
-        mark = "✓" if step.accepted else "✗"
-        others = sorted(
-            ((p, name) for name, p in step.probabilities.items() if name != step.answer),
-            reverse=True,
-        )[:3]
-        rest = " · ".join(f"{name} {p:.2f}" for p, name in others)
-        typer.echo(f"  {step.id:<12} {step.answer:<24} {step.confidence:.2f} {mark}   ({rest})")
+    for event in trace.events:
+        mark = "✓" if event.accepted else "✗"
+        typer.echo(
+            f"  {event.step:<12} {event.by:<6} {event.answer:<24} "
+            f"{event.confidence:>5.2f} {event.margin:>7.2f}  {mark}"
+        )
+        if show_trace:
+            typer.echo(f"      question: {event.question}")
+            ranked = sorted(event.probabilities.items(), key=lambda kv: -kv[1])
+            typer.echo("      " + " · ".join(f"{name} {p:.2f}" for name, p in ranked))
+            typer.echo(f"      {event.ms:.0f} ms")
         if verbose:
-            spec = report.technical.classification.steps[step.id]
+            spec = report.technical.classification.steps[event.step]
             options = OPTION_SOURCES[spec.options](report.domain, report.technical, answers)
-            typer.echo(f"      question: {step.question}")
+            typer.echo(f"      question: {event.question}")
             for option in (*options, NONE_OPTION):
                 typer.echo(f"      - {option.name}: {option.text()}")
-        if step.accepted:
-            answers[step.id] = step.answer
+        if event.accepted:
+            answers[event.step] = event.answer
 
     typer.echo("")
-    found = " › ".join(f"{v}" for v in result.answers.values())
-    typer.echo(f"Outcome   {result.outcome.upper()}" + (f": {found}" if found else ""))
-    last = result.steps[-1] if result.steps else None
-    if result.outcome == "unsure" and last and last.accepted:
+    found = " › ".join(f"{v}" for v in trace.answers.values())
+    calls = (
+        f"({trace.semif_calls} SemIf call{'s' * (trace.semif_calls != 1)}, {trace.ms / 1000:.1f}s)"
+    )
+    typer.echo(
+        f"Outcome   {trace.outcome.upper()}" + (f": {found}" if found else "") + f"   {calls}"
+    )
+    last = trace.events[-1] if trace.events else None
+    if trace.outcome == "unsure" and last and last.accepted:
         hint = (
-            f"The task doesn't fit any {last.id} in the knowledge base; a person needs to decide."
+            f"The task doesn't fit any {last.step} in the knowledge base; a person needs to decide."
         )
-    elif result.outcome == "unsure" and last:
+    elif trace.outcome == "unsure" and last:
         hint = (
-            f"SemIf is not sure enough about the {last.id} "
+            f"SemIf is not sure enough about the {last.step} "
             f"({last.confidence:.2f} < {settings.threshold:g}); a person needs to decide."
         )
     else:
@@ -203,10 +218,61 @@ def classify(
             "new_service": "No existing service fits; a new one can be designed from these facts.",
             "no_entity": "Nothing in the knowledge base fits; a new entity or connection "
             "is needed.",
-        }.get(result.outcome)
+        }.get(trace.outcome)
     if hint:
         typer.echo(f"          {hint}")
-    raise typer.Exit(EXIT_CODES.get(result.outcome, 2))
+    raise typer.Exit(EXIT_CODES.get(trace.outcome, 2))
+
+
+@eval_app.command("classify")
+def eval_classify(project: ProjectOption = Path(".")) -> None:
+    """Classify every eval case of the project and check the outcome and the path."""
+    from harness.evals import check_case, check_groups
+
+    report = _valid_knowledge(project)
+    if report.evals is None:
+        typer.echo("No eval cases: add .harness/evals/classify.yaml", err=True)
+        raise typer.Exit(1)
+
+    results = []
+    for case in report.evals.cases:
+        result = check_case(case, _classify(report, case.task))
+        results.append(result)
+        typer.echo(f"  {'✓' if result.passed else '✗'} {case.task}")
+        if not result.passed:
+            typer.echo(f"      first wrong step: {result.first_wrong}")
+            for failure in result.failures:
+                typer.echo(f"      {failure}")
+    group_failures = check_groups(results)
+    for failure in group_failures:
+        typer.echo(f"  ✗ {failure}")
+
+    passed = sum(r.passed for r in results)
+    calls = sum(r.trace.semif_calls for r in results)
+    seconds = sum(r.trace.ms for r in results) / 1000
+    groups = f", {len(group_failures)} group(s) inconsistent" if group_failures else ""
+    typer.echo("")
+    typer.echo(
+        f"{passed}/{len(results)} cases passed{groups}   ({calls} SemIf calls, {seconds:.1f}s)"
+    )
+    raise typer.Exit(0 if passed == len(results) and not group_failures else 1)
+
+
+def _classify(report: Report, task: str):
+    """Classify one task, or print why SemIf could not be asked and stop."""
+    from harness.classify.walk import classify as run_classification
+    from harness.semif.client import DecisionModelError
+
+    settings = report.settings.semif
+    try:
+        trace = run_classification(
+            task, report.domain, report.technical, make_model(report), settings.threshold
+        )
+    except DecisionModelError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    trace.url = settings.url
+    return trace
 
 
 @semif_app.command("check")

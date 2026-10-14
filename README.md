@@ -130,17 +130,41 @@ uv run harness classify "Let staff add a new publisher" --project examples/books
 ```
 
 ```
-  area         catalogue                1.00 ✓   (none 0.00 · community 0.00 · curation 0.00)
-  service      none                     0.88 ✓   (add_book 0.08 · list_books 0.02 · get_book 0.00)
-  kind         create                   1.00 ✓   (read_one 0.00 · none 0.00 · query 0.00)
-  entity       Publisher                0.99 ✓   (Book 0.01 · none 0.00)
+  step         by     answer                    conf  margin
+  area         semif  catalogue                 1.00    1.00  ✓
+  service      semif  none                      0.88    0.81  ✓
+  kind         semif  create                    1.00    1.00  ✓
+  entity       semif  Publisher                 0.99    0.99  ✓
 
-Outcome   NEW_SERVICE: catalogue › create › Publisher
+Outcome   NEW_SERVICE: catalogue › create › Publisher   (4 SemIf calls, 4.2s)
 ```
 
-SemIf answers one question at a time, choosing only among options from the knowledge base. The order of questions is configuration (`classification:` in [technical.yaml](src/harness/factories/crud-api/technical.yaml)): area, then service; when no service fits, the kind of operation and the entity (or, for link/unlink, the association). Answers below the threshold stop with `UNSURE` so a person decides. Exit codes: `0` matched or new service, `2` needs a person, `1` error. Use `-v` to see exactly what SemIf reads, `--json` for machine-readable output.
+SemIf answers one question at a time, choosing only among options from the knowledge base. The order of questions is configuration (`classification:` in [technical.yaml](src/harness/factories/crud-api/technical.yaml)): area, then service; when no service fits, the kind of operation and the entity (or, for link/unlink, the association). Answers below the threshold stop with `UNSURE` so a person decides. `margin` is how far the answer is ahead of the next option; a small margin is an early sign of doubt. Exit codes: `0` matched or new service, `2` needs a person, `1` error.
 
-Tests replay real SemIf answers recorded in `tests/recordings/`, so they run without the server. Re-record after changing the knowledge base or the questions: `uv run pytest --record-semif` (with SemIf running).
+| Option | Shows |
+|---|---|
+| `--trace` | Every step's question, each option's probability and the time taken |
+| `-v` | Exactly what SemIf reads for each option |
+| `--trace-out run.jsonl` | Writes the trace: a `run` line, one `event` line per decision, a `result` line |
+| `--json` | The trace as JSON |
+
+## Evals
+
+A project's eval cases live in `.harness/evals/classify.yaml` (see [Bookstore's](examples/bookstore/.harness/evals/classify.yaml)). Each case states the expected outcome and, optionally, how it should be reached: the answers, the path of steps, steps that must not be asked, the most SemIf calls, and a paraphrase `group` whose cases must all take the same path. `harness validate` checks that the cases name real outcomes, steps and answers.
+
+```bash
+uv run harness eval classify --project examples/bookstore
+```
+
+```
+  ✓ Add a new book
+  ✗ Readers should be able to rate a book from 1 to 5
+      first wrong step: area: expected community, got catalogue (0.62, margin 0.31)
+      ...
+7/8 cases passed   (17 SemIf calls, 21.4s)
+```
+
+Tests run the same cases against real SemIf answers recorded in `tests/recordings/`, so they run without the server. Re-record after changing the knowledge base or the questions: `uv run pytest --record-semif` (with SemIf running).
 
 ## Roadmap
 

@@ -5,57 +5,42 @@ only applies the same three rules at every step: an answer below the threshold
 goes to `low_confidence`, "none" goes to `on_none`, anything else to `on_answer`.
 """
 
-from dataclasses import asdict, dataclass, field
+import time
 
 from harness.classify.questions import OPTION_SOURCES
 from harness.knowledge.schema import Branch, Domain, Technical
 from harness.semif.client import NONE, NONE_OPTION, Choice, DecisionModel, Question
-
-
-@dataclass
-class Step:
-    id: str
-    question: str
-    options: list[str]
-    answer: str
-    confidence: float
-    probabilities: dict[str, float]
-    accepted: bool
-
-
-@dataclass
-class Classification:
-    task: str
-    threshold: float
-    outcome: str = ""
-    answers: dict[str, str] = field(default_factory=dict)
-    steps: list[Step] = field(default_factory=list)
-
-    def to_dict(self) -> dict:
-        return asdict(self)
+from harness.trace import Event, Trace, margin
 
 
 def classify(
     task: str, domain: Domain, technical: Technical, model: DecisionModel, threshold: float
-) -> Classification:
+) -> Trace:
+    """Walk the flow for one task; the trace holds every step, the outcome and the answers."""
     flow = technical.classification
-    result = Classification(task, threshold)
+    trace = Trace(task, threshold)
+    started = time.perf_counter()
     current = flow.start
     while current not in flow.outcomes:
         spec = flow.steps[current]
-        options = OPTION_SOURCES[spec.options](domain, technical, result.answers)
+        options = OPTION_SOURCES[spec.options](domain, technical, trace.answers)
         question = Question(current, spec.question, (*options, NONE_OPTION))
+        asked = time.perf_counter()
         choice: Choice = model.choose(task, question)
         accepted = choice.confidence >= threshold
-        result.steps.append(
-            Step(
-                current,
-                spec.question,
-                [o.name for o in question.options],
-                choice.answer,
-                choice.confidence,
-                choice.probabilities,
-                accepted,
+        trace.events.append(
+            Event(
+                stage="classify",
+                step=current,
+                by="semif",
+                answer=choice.answer,
+                accepted=accepted,
+                question=spec.question,
+                options=[o.name for o in question.options],
+                confidence=choice.confidence,
+                margin=margin(choice.probabilities),
+                probabilities=choice.probabilities,
+                ms=(time.perf_counter() - asked) * 1000,
             )
         )
         if not accepted:
@@ -63,10 +48,11 @@ def classify(
         elif choice.answer == NONE:
             current = spec.on_none
         else:
-            result.answers[current] = choice.answer
+            trace.answers[current] = choice.answer
             current = _next(spec.on_answer, choice.answer, technical)
-    result.outcome = current
-    return result
+    trace.outcome = current
+    trace.ms = (time.perf_counter() - started) * 1000
+    return trace
 
 
 def _next(on_answer: str | Branch, answer: str, technical: Technical) -> str:

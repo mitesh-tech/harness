@@ -33,7 +33,8 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | SemIf over HTTP (Qwen3.5-4B on MLX), `harness semif check`, recorded tests | Done |
 | Classification (area → service flow, configuration-driven) | Done; replaced in S2c by the factory flow |
 | Factory structure (S1) | Done |
-| Operations and targets (S2a), traces, router, data layer, resolve, spec, generation, verification, learning | Planned below |
+| Operations and targets (S2a) | Done |
+| Traces, router, data layer, resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages
 

@@ -16,6 +16,7 @@ from harness.factories import Factory, installed_factories
 from harness.knowledge import references
 from harness.knowledge.load import Problem, YamlFile, parse, read_yaml
 from harness.knowledge.schema import (
+    ClassifyEvals,
     Domain,
     FactoryManifest,
     HarnessFile,
@@ -54,6 +55,7 @@ class Report:
     domain: Domain | None = None
     # Until the factory router exists, commands use the first enabled factory's knowledge.
     technical: Technical | None = None
+    evals: ClassifyEvals | None = None  # .harness/evals/classify.yaml, when present
     logic: str | None = None  # summary of layer 4, when it ran or was skipped
 
     @property
@@ -149,7 +151,23 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
         _attach(report, references.check_domain(domain, primary.technical), {(): domain_file})
         if logic and report.ok:
             _check_logic(report, domain, primary, domain_file, strict)
+        _load_evals(report, knowledge_dir / EVALS, domain, primary.technical)
     return report
+
+
+EVALS = Path("evals") / "classify.yaml"
+
+
+def _load_evals(report: Report, path: Path, domain: Domain, technical: Technical) -> None:
+    if not path.is_file():
+        return
+    evals = _load(report, ClassifyEvals, path)
+    if evals is None:
+        return
+    groups = {case.group for case in evals.cases if case.group}
+    report.checked[-1].summary = f"{len(evals.cases)} cases, {len(groups)} paraphrase groups"
+    report.evals = evals
+    _attach(report, references.check_evals(evals, domain, technical), {(): _yaml_file(path)})
 
 
 def _enabled_factories(report: Report, project_file: Path, names: list[str]) -> list[Factory]:
