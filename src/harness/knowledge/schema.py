@@ -60,6 +60,7 @@ class HarnessFile(Model):
     pack: KebabName
     knowledge: Text = ".harness"
     factories: list[KebabName] | None = None  # None: every installed factory
+    harness: Text | None = None  # harness versions this project works with, e.g. ">=0.1,<0.2"
     semif: SemIfSettings = Field(default_factory=SemIfSettings)
 
 
@@ -76,6 +77,7 @@ class FactoryManifest(Model):
     # that needs it ends as unsupported with a clear reason.
     available: StrictBool = True
     technical: Text = "technical.yaml"
+    rules: Text | None = None  # Prolog decision rules of this factory, e.g. anatomy.pl
     checks: Text = "checks.pl"
     packs: list[KebabName] = Field(default_factory=list)
 
@@ -144,6 +146,9 @@ class Entity(Model):
     identifier: SnakeName
     attributes: dict[SnakeName, Attribute] = Field(min_length=1)
     lifecycle: Lifecycle | None = None
+    # What a list shows for each item (the identifier and lifecycle field are
+    # always shown). Omitted: every attribute.
+    summary: list[SnakeName] | None = None
 
     @model_validator(mode="after")
     def _check_identifier(self) -> "Entity":
@@ -152,6 +157,9 @@ class Entity(Model):
             raise ValueError(f"identifier '{self.identifier}' is not one of the attributes")
         if not (attribute.required or attribute.generated):
             raise ValueError(f"identifier '{self.identifier}' must be required or generated")
+        unknown = [a for a in self.summary or [] if a not in self.attributes]
+        if unknown:
+            raise ValueError(f"summary names unknown attribute(s): {', '.join(unknown)}")
         if self.lifecycle and self.lifecycle.field in self.attributes:
             raise ValueError(
                 f"'{self.lifecycle.field}' is the lifecycle field; "
@@ -166,9 +174,22 @@ class Association(Model):
     parent: EntityName
     child: EntityName
     cardinality: Literal["one_to_many", "many_to_many"]
+    # One-to-many aggregation only: deleting the parent while children point
+    # at it is refused (restrict, the default) or clears their reference.
+    on_delete: Literal["restrict", "set_null"] | None = None
+    # One-to-many aggregation only: every child must point at a parent.
+    required: StrictBool = False
 
     @model_validator(mode="after")
     def _check_composition(self) -> "Association":
+        one_to_many_aggregation = self.kind == "aggregation" and self.cardinality == "one_to_many"
+        if (self.on_delete or self.required) and not one_to_many_aggregation:
+            raise ValueError(
+                "on_delete and required are for one-to-many aggregations; a composition "
+                "always cascades and a many-to-many link is simply removed"
+            )
+        if self.on_delete == "set_null" and self.required:
+            raise ValueError("on_delete: set_null clears a reference that is required")
         if self.kind == "composition":
             if self.cardinality != "one_to_many":
                 raise ValueError(
@@ -177,6 +198,10 @@ class Association(Model):
             if self.parent == self.child:
                 raise ValueError("an entity cannot be composed of itself")
         return self
+
+
+class ServiceApi(Model):
+    path: Annotated[str, StringConstraints(strict=True, pattern=r"^/\S*$")]
 
 
 class Service(Model):
@@ -190,6 +215,7 @@ class Service(Model):
     filters: list[SnakeName] = Field(default_factory=list, max_length=MAX_OPTIONS)
     changes: list[SnakeName] = Field(default_factory=list)
     moves: Transition | None = None
+    api: ServiceApi | None = None  # a one-off difference for this service only
 
 
 class Domain(Model):
@@ -290,6 +316,47 @@ class Operation(Model):
     not_: Text | None = Field(default=None, alias="not")
     kinds: list[SnakeName] = Field(min_length=1)
     question: Text | None = None
+
+
+class PathConventions(Model):
+    case: Literal["kebab", "snake"] = "kebab"
+    plural: StrictBool = True
+    param: Annotated[str, StringConstraints(strict=True, pattern=r"^[a-z{}_]+$")] = "{entity}_id"
+    nest_children: StrictBool = True
+    transition: Literal["verb_in_path", "field_in_body"] = "verb_in_path"
+
+
+class PagingConventions(Model):
+    page: SnakeName = "page"
+    size: SnakeName = "size"
+    default_size: StrictInt = Field(default=20, ge=1)
+    max_size: StrictInt = Field(default=100, ge=1)
+
+
+class ErrorConventions(Model):
+    not_found: StrictInt = Field(default=404, ge=400, le=599)
+    invalid: StrictInt = Field(default=422, ge=400, le=599)
+    conflict: StrictInt = Field(default=409, ge=400, le=599)
+
+
+class ApiConventions(Model):
+    """How every API of a factory is shaped; read by the anatomy rules."""
+
+    paths: PathConventions = Field(default_factory=PathConventions)
+    paging: PagingConventions = Field(default_factory=PagingConventions)
+    errors: ErrorConventions = Field(default_factory=ErrorConventions)
+
+
+class ApiOverride(Model):
+    """Only the conventions a project changes; the rest stay the factory's."""
+
+    paths: dict[Literal["case", "plural", "param", "nest_children", "transition"], object] = Field(
+        default_factory=dict
+    )
+    paging: dict[Literal["page", "size", "default_size", "max_size"], object] = Field(
+        default_factory=dict
+    )
+    errors: dict[Literal["not_found", "invalid", "conflict"], object] = Field(default_factory=dict)
 
 
 class Component(Model):
@@ -397,6 +464,7 @@ class Technical(Model):
     components: dict[SnakeName, Component] = Field(min_length=1)
     rules: list[Rule] = Field(min_length=1)
     askable: dict[SnakeName, Text] = Field(default_factory=dict)
+    api: ApiConventions = Field(default_factory=ApiConventions)
     classification: ClassificationFlow
 
 
@@ -408,6 +476,8 @@ class TechnicalOverride(Model):
     components: dict[SnakeName, Component] = Field(default_factory=dict)
     rules: list[Rule] = Field(default_factory=list)
     askable: dict[SnakeName, Text] = Field(default_factory=dict)
+    api: ApiOverride | None = None  # only the conventions that change
+    remove_rules: list[KebabName] = Field(default_factory=list)  # factory rules to drop, by id
     classification: ClassificationFlow | None = None  # replaces the whole flow
 
 

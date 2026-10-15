@@ -88,7 +88,7 @@ Dependents and the delete policy (`on_delete`) are derived in Prolog when the de
 | **Which operation?** → kind | SemIf for the operation; the kind by rule, or SemIf when several remain | `UNSUPPORTED`: no kind fits this target · `UNSURE`: you choose |
 | **Find service** | A lookup of existing services for this target and kind; SemIf confirms among them, always with "none" | No match → a **new service**, named by rule (`add_{entity}`, `list_{entities}`, …) |
 | **Data mapping exists?** | Check `data.yaml` | `NO_MAPPING`: you add the mapping |
-| **Resolve** | Prolog applies the API rules and the data mapping; SemIf answers only yes/no questions the knowledge base leaves open (for example "is login required?") | Logic problems block the design |
+| **Resolve** | Prolog applies the API anatomy rules (see [Design decisions](#design-decisions)) and the data mapping; for a new service, SemIf answers yes/no questions about details the task states (which attributes change, which filters) | Logic problems block the design; unclear details become open questions |
 | **Generate spec** | The harness writes `spec.yaml` and `openapi.yaml` in the run folder | Open questions are listed in the spec |
 | **Confirm spec** | You approve, edit or reject it. Edits are checked again | Reject → nothing is written |
 | **Generate code** | The factory's templates for the project's stack pack, from the confirmed spec only | — |
@@ -206,7 +206,6 @@ api:
     body: Publisher
     headers: [Location]
   errors:
-    - { status: 401, when: "not logged in" }
     - { status: 409, when: "a publisher with this name already exists" }
     - { status: 422, when: "invalid or missing fields" }
 
@@ -217,14 +216,12 @@ data:
 
 components:
   - { name: body_validation, rule: create-validates-body }
-  - { name: auth_check, rule: login-needs-auth, fact: "requires_login (SemIf 0.90)" }
   - { name: serialization, rule: always-serialize }
 
 tests:
   - creates a publisher → 201 and Location
   - missing name → 422
   - duplicate name → 409
-  - not logged in → 401
 
 open_questions: []
 sources:
@@ -235,6 +232,58 @@ sources:
 ```
 
 The API contract is also written as `openapi.yaml`. Generation can be re-run from a confirmed spec without classifying again.
+
+## Design decisions
+
+The decisions behind every API this factory designs (stage S4). The choices marked *setting* live in `technical.yaml › api` and can be overridden per project.
+
+### API anatomy
+
+| # | Decision |
+|---|---|
+| I2 | **Path for identity, query for lists.** The item a request acts on is a path parameter (`/books/{book_id}`). Query parameters exist only on lists: filters on summary fields, plus paging. A single item has no query parameters |
+| I3 | The identifying value is the entity's `identifier` in `domain.yaml` |
+| I4 | Paths are plural, kebab-case (`/books`, `/book-authors`); parameters are `{entity}_id` (*setting*) |
+| I5 | Composition children are nested for lists and single items: `/books/{book_id}/reviews/{review_id}`; the parent must exist and own the child (*setting*) |
+| I6 | Connections: many-to-many `PUT`/`DELETE /collections/{collection_id}/books/{book_id}`; one-to-many `PUT`/`DELETE /books/{book_id}/publisher` with body `{publisher_id}` |
+| I7 | Transitions: `PATCH /books/{book_id}/archive`, the verb in the path, no body (*setting*: or the lifecycle field in the body, which shares the item's PATCH) |
+| I8 | Request body: create and replace send every attribute except generated ones and the lifecycle field; change sends only its `changes`; others have no body |
+| I9 | Responses: a single item has all attributes; a list has `items` (summaries), `paging` and `applied_filters`; delete, link and unlink return 204. Errors: 404 unknown identifier or parent; 422 invalid body; 409 unique value taken, move not allowed, or delete restricted (*setting*: the codes) |
+| I10 | List summary: `summary: [...]` per entity (default: all attributes; identifier and lifecycle field always shown). A list's filters must be summary fields |
+
+### Dependents and delete
+
+| # | Decision |
+|---|---|
+| I11 | `on_delete: restrict \| set_null` on one-to-many aggregations in `domain.yaml` (default `restrict`: 409 while referenced). Compositions always cascade, all the way down. Many-to-many link rows are removed |
+| I12 | Prolog `dependent/3`, `cascades/2`, `delete_effect/4`, each effect with its rule id. `set_null` can't clear a `required` reference |
+
+### Scope and SemIf
+
+| # | Decision |
+|---|---|
+| I13 | No auth, roles or caching in the CRUD factory: generated routers fit into the app's own auth. An auth factory is planned |
+| I14 | SemIf only reads the task for new-service details (which attributes change, which filters, which lifecycle move); below the threshold → open question |
+
+### Output and commands
+
+| # | Decision |
+|---|---|
+| I15 | Run folder `.harness/runs/<id>/` (`trace.jsonl`, `spec.yaml`, `openapi.yaml`), git-ignored in projects |
+| I16 | The spec is the source of truth; OpenAPI 3.1 is generated only from it; every value names its source |
+| I17 | `harness resolve "task"` (S4b) and `harness resolve --service <name>`; unsure, no entity, no mapping and unsupported tasks stop before resolve |
+
+### Customising
+
+| # | Decision |
+|---|---|
+| I19 | Anatomy choices are settings in `technical.yaml › api`; Prolog holds only the mechanics |
+| I20 | Overrides can remove a rule: `remove_rules: [id]` |
+| I21 | One service can differ: `api: { path: … }` on it in `domain.yaml` |
+| I22 | Logic checks can't be overridden |
+| I23 | `?fields=` and `?include=` belong to a later "richer reads" stage |
+| I24 | `harness override SECTION.NAME` starts an override from the factory's entry |
+| I25 | `harness: "<range>"` in `harness.yaml` pins the harness versions a project works with |
 
 ## Outcomes
 
@@ -252,7 +301,8 @@ The API contract is also written as `openapi.yaml`. Generation can be re-run fro
 ```
 src/harness/factories/crud-api/
 ├── factory.yaml        # name, description, examples (for the router), packs
-├── technical.yaml      # operations → kinds, API rules, components, askable facts, flow
+├── technical.yaml      # kinds, operations, API conventions, rules, components, flow
+├── anatomy.pl          # API anatomy and delete rules (Prolog)
 ├── checks.pl           # factory-specific logic checks
 ├── templates/
 │   └── python-fastapi/ # route, schemas, repository interface, tests

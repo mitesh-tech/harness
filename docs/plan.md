@@ -37,6 +37,7 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | Traces and eval cases (S2b) | Done |
 | Classification with the factory router, CRUD flow, planned domain-model factory (S2c) | Done |
 | Data layer (S3) | Done |
+| API anatomy (S4a) | Done |
 | Resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages
@@ -51,7 +52,8 @@ Each stage is one or two pull requests, ends with something you can run, and sta
 | **S2b: Traces and eval cases** | A **trace** of every decision (step, by SemIf or rule, options, answer, confidence, margin, time); eval cases that check the **path**, questions not asked, number of SemIf calls and paraphrase groups; the first wrong step is reported | `harness classify "…" --trace` |
 | **S2c: Classification** | **Factory router** (a gate while there is one factory); target first (entity or connection); parent by rule; operation → kind (by rule when only one) → lookup → SemIf confirms; questions in domain language with the target's context; outcomes `UNSUPPORTED`, `NO_ENTITY`, `NEW_SERVICE`, `MATCHED`, `UNSURE`; kind `update` renamed `change`; SemIf answers re-recorded | `harness classify "…"` |
 | **S3: Data layer** | `.harness/data.yaml` (sources, entities → tables and columns, relationships, written out in full); **relational** source-type plugin (capabilities, converters, introspection); checks in Python and Prolog; classification step `data` → `NO_MAPPING` | `harness validate --introspect` |
-| **S4: Resolve and spec** | **API anatomy rules** in Prolog (request body, path and query parameters, response, statuses), data mapping, askable yes/no questions to SemIf, sources for every value, open questions; **dependents and delete policy** (`dependent/2` through compositions and references, `on_delete`: cascade, restrict or set_null); `spec.yaml` + `openapi.yaml`; resolve decisions in the trace | `harness resolve "…"` |
+| **S4a: API anatomy** | Prolog anatomy rules (paths, parameters, body, response, errors) with conventions as overridable settings; list summaries; dependents and delete policy (`on_delete`); auth and caching out of the CRUD factory; `remove_rules`, per-service paths, `harness override`, version pin | `harness resolve --service add_review` |
+| **S4b: Spec** | `spec.yaml` + `openapi.yaml` in the run folder; resolving a classified task; SemIf yes/no questions for new-service details; open questions; resolve events in the trace | `harness resolve "…"` |
 | **S5: Confirm, generate, verify, report (create)** | Confirm the spec (approve, edit and re-check, reject); FastAPI templates (route, schemas, repository interface, relational adapter, tests); router registration; git worktree; verification against the spec; report | `harness run "Let staff add a new publisher"` |
 | **S6: All CRUD kinds** | read one, list (filters are response fields, paging), update, replace, transition (guarded by the lifecycle), delete; link and unlink for connections; nested APIs for composition | `harness run` for any CRUD task |
 | **S7: Domain-model factory** | Its manifest is already installed as planned (`available: false`), so the router sends domain changes there instead of to CRUD. A second factory for changes to the domain itself: add or remove an attribute, add an entity or a relationship. Drafts the domain change for your approval; impact analysis (including dependents); then the CRUD factory updates mapping, schemas, APIs and tests together | `harness run "Add an isbn field to books"` |
@@ -67,7 +69,8 @@ Each stage is one or two pull requests, ends with something you can run, and sta
 | More data sources | REST APIs of other services, document stores |
 | Agent-driven runs | Claude Code, Codex, Copilot skills that drive the same spec-based flow |
 | More stack packs | e.g. Node/Express, to prove the factories are language-agnostic |
-| More factories | e.g. authentication, export and reports |
+| More factories | Authentication (login, roles), export and reports |
+| Richer reads | `?fields=` (choose fields) and `?include=` (embed related things) |
 
 ## Repository layout (target)
 
@@ -82,7 +85,7 @@ harness/
 │   │   └── crud-api/    # factory.yaml, technical.yaml, checks.pl, templates/, evals/
 │   ├── datasources/
 │   │   └── relational/  # source.yaml, schema, introspect, templates/
-│   ├── resolve/         # design, naming, facts, askable loop, spec
+│   ├── resolve/         # the API design of a service; spec writing (S4b)
 │   ├── run/             # confirm, worktree, orchestration
 │   ├── verify/          # checks against the spec
 │   └── report/          # run reports

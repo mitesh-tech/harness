@@ -54,6 +54,17 @@ FACTS = [
     "flow_step/1",
     "flow_outcome/1",
     "flow_edge/2",
+    "resource/2",
+    "singular/2",
+    "id_param/2",
+    "summary_field/2",
+    "on_delete/2",
+    "association_required/1",
+    "service_path/2",
+    "nest_children/1",
+    "transition_style/1",
+    "paging_param/2",
+    "error_code/2",
     "data_loaded/0",
     "stored_in/2",
     "stored_table/2",
@@ -131,6 +142,7 @@ def compile_knowledge(domain: Domain, technical: Technical, data=None) -> str:
     _domain_facts(program, domain)
     _technical_facts(program, technical)
     _bridge_rules(program, technical)
+    _api_facts(program, domain, technical)
     if data is not None:
         _data_facts(program, data)
     header = [
@@ -236,6 +248,54 @@ def _technical_facts(p: Program, technical: Technical) -> None:
         nexts = [*answers, step.on_none, step.on_empty, flow.low_confidence]
         for target in dict.fromkeys(n for n in nexts if n is not None):
             p.add("flow_edge/2", f"flow_edge({s}, {atom(target)}).")
+
+
+def plural(word: str) -> str:
+    if re.search(r"[^aeiou]y$", word):
+        return word[:-1] + "ies"
+    if re.search(r"(s|x|z|ch|sh)$", word):
+        return word + "es"
+    return word + "s"
+
+
+def path_segment(entity: str, conventions, many: bool) -> str:
+    """Book -> books (or book, book_authors, …), following the factory's path conventions."""
+    word = snake(entity)
+    if many and conventions.plural:
+        word = plural(word)
+    return word.replace("_", "-") if conventions.case == "kebab" else word
+
+
+def _api_facts(p: Program, domain: Domain, technical: Technical) -> None:
+    """The API conventions, and what they make of each entity's names."""
+    paths = technical.api.paths
+    p.add("nest_children/1", f"nest_children({str(paths.nest_children).lower()}).")
+    p.add("transition_style/1", f"transition_style({paths.transition}).")
+    paging = technical.api.paging
+    p.add("paging_param/2", f"paging_param(page, {atom(paging.page)}).")
+    p.add("paging_param/2", f"paging_param(size, {atom(paging.size)}).")
+    for name, code in technical.api.errors.model_dump().items():
+        p.add("error_code/2", f"error_code({name}, {code}).")
+    for name, entity in domain.entities.items():
+        e = atom(snake(name))
+        p.add("resource/2", f"resource({e}, {atom(path_segment(name, paths, True))}).")
+        p.add("singular/2", f"singular({e}, {atom(path_segment(name, paths, False))}).")
+        param = paths.param.replace("{entity}", snake(name))
+        p.add("id_param/2", f"id_param({e}, {atom(param)}).")
+        shown = entity.summary if entity.summary is not None else list(entity.attributes)
+        shown = [entity.identifier, *shown]
+        if entity.lifecycle:
+            shown.append(entity.lifecycle.field)
+        for attribute in dict.fromkeys(shown):
+            p.add("summary_field/2", f"summary_field({e}, {atom(attribute)}).")
+    for name, a in domain.associations.items():
+        if a.kind == "aggregation" and a.cardinality == "one_to_many":
+            p.add("on_delete/2", f"on_delete({atom(name)}, {a.on_delete or 'restrict'}).")
+            if a.required:
+                p.add("association_required/1", f"association_required({atom(name)}).")
+    for name, s in domain.services.items():
+        if s.api is not None:
+            p.add("service_path/2", f"service_path({atom(name)}, {atom(s.api.path)}).")
 
 
 def _data_facts(p: Program, data) -> None:

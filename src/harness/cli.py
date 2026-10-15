@@ -27,6 +27,9 @@ app.add_typer(kb_app, name="kb")
 app.add_typer(semif_app, name="semif")
 app.add_typer(eval_app, name="eval")
 
+# The published schemas, for the `$schema` line of files the harness writes.
+SCHEMAS_URL = "https://raw.githubusercontent.com/mitesh-tech/harness/main/schemas"
+
 EXIT_CODES = {
     "matched": 0,
     "new_service": 0,
@@ -326,6 +329,93 @@ def _classify(report: Report, task: str):
     return trace
 
 
+@app.command()
+def resolve(
+    service: Annotated[
+        str | None,
+        typer.Option("--service", "-s", help="Resolve this existing service (no SemIf needed)."),
+    ] = None,
+    project: ProjectOption = Path("."),
+) -> None:
+    """Design a service's API: path, parameters, body, response, errors, data, delete effects."""
+    import yaml
+
+    from harness.logic.engine import PrologUnavailable
+    from harness.resolve import ResolveError, design_service
+
+    if service is None:
+        typer.echo("Give a service with --service (resolving a task comes in S4b).", err=True)
+        raise typer.Exit(1)
+    report = validate_project(project)
+    if not report.ok or report.domain is None or report.technical is None:
+        _print_problems(report, errors_only=True)
+        typer.echo("The knowledge has errors; fix them first (see `harness validate`).", err=True)
+        raise typer.Exit(1)
+    try:
+        design = design_service(report, service)
+    except (ResolveError, PrologUnavailable) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(yaml.safe_dump(design.to_dict(), sort_keys=False, allow_unicode=True), nl=False)
+
+
+OVERRIDE_HEADER = (
+    "# yaml-language-server: $schema={schema}\n"
+    "#\n"
+    "# Project overrides of the {factory} factory's technical knowledge.\n"
+    "# Write only what differs: entries replace the factory's by name (rules by\n"
+    "# id); `api:` changes only the settings given. See `harness override --help`.\n\n"
+)
+
+
+@app.command()
+def override(
+    entry: Annotated[
+        str,
+        typer.Argument(
+            help="What to override: kinds.<name>, operations.<name>, components.<name>, "
+            "rules.<id> or api.<paths|paging|errors>."
+        ),
+    ],
+    project: ProjectOption = Path("."),
+) -> None:
+    """Start an override: copy one factory entry into the project's override file."""
+    import yaml
+
+    report = _valid_knowledge(project)
+    loaded = next(iter(report.factories.values()))
+    section, _, name = entry.partition(".")
+    factory_file = loaded.factory.root / loaded.manifest.technical
+    factory_data = yaml.safe_load(factory_file.read_text())
+
+    if section == "rules":
+        found = [r for r in factory_data.get("rules", []) if r.get("id") == name]
+        snippet = {"rules": found}
+    elif section in ("kinds", "operations", "components", "api"):
+        value = factory_data.get(section, {}).get(name)
+        found = [value] if value is not None else []
+        snippet = {section: {name: value}}
+    else:
+        typer.echo(f"unknown section '{section}'; see `harness override --help`", err=True)
+        raise typer.Exit(1)
+    if not found:
+        typer.echo(f"the {loaded.factory.name} factory has no {entry}", err=True)
+        raise typer.Exit(1)
+
+    text = yaml.safe_dump(snippet, sort_keys=False, allow_unicode=True)
+    target = report.root / report.settings.knowledge / "factories" / loaded.factory.name
+    path = target / "technical.yaml"
+    if path.exists():
+        typer.echo(f"# Add this to {_show(report, path)} and edit it:\n")
+        typer.echo(text, nl=False)
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    schema = f"{SCHEMAS_URL}/technical-override.schema.json"
+    path.write_text(OVERRIDE_HEADER.format(schema=schema, factory=loaded.factory.name) + text)
+    typer.echo(f"wrote {_show(report, path)} with {entry} from the factory; edit it, then run")
+    typer.echo("`harness validate` to check it.")
+
+
 @semif_app.command("check")
 def semif_check(project: ProjectOption = Path(".")) -> None:
     """Check that SemIf is running and answering."""
@@ -362,8 +452,8 @@ def _valid_knowledge(project: Path) -> Report:
 
 
 def _checks(report: Report) -> list[Path]:
-    """Each enabled factory's Prolog checks."""
-    return [f.checks for f in report.factories.values() if f.checks.is_file()]
+    """Each enabled factory's Prolog files: decision rules and checks."""
+    return [path for f in report.factories.values() for path in f.logic]
 
 
 def _show(report: Report, path: Path) -> str:

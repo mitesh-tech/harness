@@ -90,12 +90,11 @@ def test_old_override_location_is_reported(project: Path):
 
 
 def test_per_factory_override(project: Path):
-    factory_override(project).write_text(
-        'askable:\n  requires_login: "Must the user be signed in?"\n'
-    )
+    factory_override(project).write_text("api:\n  paths: { plural: false }\n")
     report = validate_project(project)
     assert report.ok, messages(report)
-    assert report.technical.askable["requires_login"] == "Must the user be signed in?"
+    assert report.technical.api.paths.plural is False
+    assert report.technical.api.paths.nest_children is True  # the rest stays the factory's
 
 
 # ── A broken factory (copied to a temporary folder) ─────────────────

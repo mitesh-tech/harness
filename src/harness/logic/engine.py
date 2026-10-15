@@ -47,6 +47,13 @@ MESSAGES = {
     "source_cannot_persist": "its source {1} cannot do {0}, which this kind of API needs",
     "source_cannot_filter": "its source {0} cannot filter lists, which this service's filters need",
     "relationship_not_stored": "{name} has no entry under relationships in data.yaml",
+    "filter_not_in_summary": (
+        "it filters by {0}, which a list of {1} does not show; add {0} to {1}'s summary"
+    ),
+    "service_without_path": (
+        "no path can be made for it (a transition is named {{verb}}_{{entity}}, e.g. archive_book)"
+    ),
+    "route_clash": "{1} {2} is also the path of {0}",
     "conflicting_decisions": "rules disagree on {0}: {1} (rule {2}) vs {3} (rule {4})",
     "flow_cycle": "step '{name}' can lead back to itself; the classification could loop forever",
     "flow_unreachable": "step '{name}' can never be reached from the start",

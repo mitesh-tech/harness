@@ -1,5 +1,22 @@
 {
   "$defs": {
+    "ApiConventions": {
+      "additionalProperties": false,
+      "description": "How every API of a factory is shaped; read by the anatomy rules.",
+      "properties": {
+        "paths": {
+          "$ref": "#/$defs/PathConventions"
+        },
+        "paging": {
+          "$ref": "#/$defs/PagingConventions"
+        },
+        "errors": {
+          "$ref": "#/$defs/ErrorConventions"
+        }
+      },
+      "title": "ApiConventions",
+      "type": "object"
+    },
     "Branch": {
       "additionalProperties": false,
       "description": "Choose the next step by the answer given (a step with `choices`).",
@@ -181,6 +198,34 @@
         }
       },
       "title": "Condition",
+      "type": "object"
+    },
+    "ErrorConventions": {
+      "additionalProperties": false,
+      "properties": {
+        "not_found": {
+          "default": 404,
+          "maximum": 599,
+          "minimum": 400,
+          "title": "Not Found",
+          "type": "integer"
+        },
+        "invalid": {
+          "default": 422,
+          "maximum": 599,
+          "minimum": 400,
+          "title": "Invalid",
+          "type": "integer"
+        },
+        "conflict": {
+          "default": 409,
+          "maximum": 599,
+          "minimum": 400,
+          "title": "Conflict",
+          "type": "integer"
+        }
+      },
+      "title": "ErrorConventions",
       "type": "object"
     },
     "FlowChoice": {
@@ -581,6 +626,78 @@
       "title": "Outcome",
       "type": "object"
     },
+    "PagingConventions": {
+      "additionalProperties": false,
+      "properties": {
+        "page": {
+          "default": "page",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Page",
+          "type": "string"
+        },
+        "size": {
+          "default": "size",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Size",
+          "type": "string"
+        },
+        "default_size": {
+          "default": 20,
+          "minimum": 1,
+          "title": "Default Size",
+          "type": "integer"
+        },
+        "max_size": {
+          "default": 100,
+          "minimum": 1,
+          "title": "Max Size",
+          "type": "integer"
+        }
+      },
+      "title": "PagingConventions",
+      "type": "object"
+    },
+    "PathConventions": {
+      "additionalProperties": false,
+      "properties": {
+        "case": {
+          "default": "kebab",
+          "enum": [
+            "kebab",
+            "snake"
+          ],
+          "title": "Case",
+          "type": "string"
+        },
+        "plural": {
+          "default": true,
+          "title": "Plural",
+          "type": "boolean"
+        },
+        "param": {
+          "default": "{entity}_id",
+          "pattern": "^[a-z{}_]+$",
+          "title": "Param",
+          "type": "string"
+        },
+        "nest_children": {
+          "default": true,
+          "title": "Nest Children",
+          "type": "boolean"
+        },
+        "transition": {
+          "default": "verb_in_path",
+          "enum": [
+            "verb_in_path",
+            "field_in_body"
+          ],
+          "title": "Transition",
+          "type": "string"
+        }
+      },
+      "title": "PathConventions",
+      "type": "object"
+    },
     "Rule": {
       "additionalProperties": false,
       "properties": {
@@ -655,6 +772,9 @@
       },
       "title": "Askable",
       "type": "object"
+    },
+    "api": {
+      "$ref": "#/$defs/ApiConventions"
     },
     "classification": {
       "$ref": "#/$defs/ClassificationFlow"

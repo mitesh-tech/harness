@@ -35,6 +35,7 @@ entities:
       transitions:
         - { from: active, to: archived }
         - { from: archived, to: active }
+    summary: [title, author, price]   # what a list shows for each book (with id and status)
 
   Publisher:
     area: catalogue
@@ -84,6 +85,7 @@ associations:
     parent: Publisher
     child: Book
     cardinality: one_to_many
+    on_delete: restrict       # a publisher with books can't be deleted (409)
 
 # ── Services: existing APIs, offered when SemIf confirms a lookup ───
 services:

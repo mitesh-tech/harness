@@ -27,7 +27,7 @@ from harness.knowledge.schema import (
     FlowStep,
     Technical,
 )
-from harness.logic.compile import snake
+from harness.logic.compile import plural, snake
 from harness.logic.engine import Engine
 from harness.semif.client import NONE, NONE_OPTION, DecisionModel, Option, Question
 from harness.trace import Event, Trace, margin
@@ -297,14 +297,6 @@ def _next(on_answer: str | Branch, answer: str) -> str:
 
 
 # ── Naming a new service ────────────────────────────────────────────
-
-
-def plural(word: str) -> str:
-    if re.search(r"[^aeiou]y$", word):
-        return word[:-1] + "ies"
-    if re.search(r"(s|x|z|ch|sh)$", word):
-        return word + "es"
-    return word + "s"
 
 
 def _name_new_service(trace: Trace, domain: Domain, technical: Technical) -> None:

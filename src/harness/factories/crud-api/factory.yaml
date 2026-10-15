@@ -13,5 +13,6 @@ examples:
   - "Change a product's price"
   - "Remove a cancelled order"
 technical: technical.yaml
+rules: anatomy.pl
 checks: checks.pl
 packs: [python-fastapi]

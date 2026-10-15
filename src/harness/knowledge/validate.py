@@ -12,11 +12,14 @@ layers replace earlier entries:
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from harness.factories import Factory, installed_factories
 from harness.knowledge import references
 from harness.knowledge.data import LoadedData, check_data, load_data
 from harness.knowledge.load import Problem, YamlFile, parse, read_yaml
 from harness.knowledge.schema import (
+    ApiConventions,
     ClassifyEvals,
     Domain,
     FactoryManifest,
@@ -44,6 +47,12 @@ class LoadedFactory:
     technical: Technical
     origins: dict  # where each technical entry came from, for error lines
     checks: Path
+    rules: Path | None = None
+
+    @property
+    def logic(self) -> list[Path]:
+        """The factory's Prolog files: its decision rules, then its checks."""
+        return [p for p in (self.rules, self.checks) if p is not None and p.is_file()]
 
 
 @dataclass
@@ -103,6 +112,7 @@ def validate_project(
     report.settings = settings
     names = settings.factories if settings.factories is not None else list(installed_factories())
     report.checked[-1].summary = f"pack {settings.pack}, factories: {', '.join(names) or 'none'}"
+    _check_version(report, project_file, settings.harness)
     report.problems.append(
         Problem(
             project_file,
@@ -305,6 +315,39 @@ def _load_evals(report: Report, path: Path, domain: Domain, technical: Technical
     _attach(report, findings, {(): _yaml_file(path)})
 
 
+def _check_version(report: Report, project_file: Path, wanted: str | None) -> None:
+    """The installed harness must be one the project says it works with."""
+    if wanted is None:
+        return
+    from packaging.specifiers import InvalidSpecifier, SpecifierSet
+
+    from harness import __version__
+
+    where = ("harness",)
+    try:
+        allowed = SpecifierSet(wanted)
+    except InvalidSpecifier:
+        report.problems.append(
+            Problem(
+                project_file,
+                where,
+                f"'{wanted}' is not a version range (e.g. \">=0.1,<0.2\")",
+                _line(project_file, where),
+            )
+        )
+        return
+    if __version__ not in allowed:
+        report.problems.append(
+            Problem(
+                project_file,
+                where,
+                f"this project works with harness {wanted}, but {__version__} is installed",
+                _line(project_file, where),
+                "warning",
+            )
+        )
+
+
 def _enabled_factories(report: Report, project_file: Path, names: list[str]) -> list[Factory]:
     installed = installed_factories()
     enabled = []
@@ -351,8 +394,11 @@ def _load_factory(
         report.checked[-1].summary = "planned: offered to the router, not built yet"
         return manifest
     report.checked[-1].summary = f"packs: {', '.join(manifest.packs)}"
-    for field_name in ("technical", "checks"):
-        if not (factory.root / getattr(manifest, field_name)).is_file():
+    for field_name in ("technical", "rules", "checks"):
+        if (
+            getattr(manifest, field_name)
+            and not (factory.root / getattr(manifest, field_name)).is_file()
+        ):
             report.problems.append(
                 manifest_file.problem(
                     (field_name,),
@@ -365,7 +411,10 @@ def _load_factory(
     technical, origins = _load_technical(report, factory.root / manifest.technical, override)
     if technical is None:
         return None
-    return LoadedFactory(factory, manifest, technical, origins, factory.root / manifest.checks)
+    rules = factory.root / manifest.rules if manifest.rules else None
+    return LoadedFactory(
+        factory, manifest, technical, origins, factory.root / manifest.checks, rules
+    )
 
 
 LOGIC_PATHS = {"service": "services", "entity": "entities", "association": "associations"}
@@ -378,7 +427,7 @@ def _check_logic(
     from harness.logic.engine import Engine, PrologUnavailable
 
     flow_file = primary.origins.get(("classification",)) or primary.origins[()]
-    checks = [f.checks for f in report.factories.values() if f.checks.is_file()]
+    checks = [path for f in report.factories.values() for path in f.logic]
     try:
         engine = Engine(domain, primary.technical, checks, report.data)
     except PrologUnavailable as exc:
@@ -426,7 +475,7 @@ def _load_technical(report: Report, factory_path: Path, override_path: Path):
     report.checked[-1].summary = (
         f"{len(default.kinds)} kinds, {len(default.operations)} operations, "
         f"{len(default.rules)} rules, "
-        f"{len(default.components)} components, {len(default.askable)} askable facts"
+        f"{len(default.components)} components"
     )
     default_file = _yaml_file(factory_path)
     origins: dict[tuple, YamlFile] = {(): default_file}
@@ -459,6 +508,39 @@ def _load_technical(report: Report, factory_path: Path, override_path: Path):
     if override.classification is not None:
         merged.classification = override.classification
         origins[("classification",)] = override_file
+
+    if override.api is not None:
+        conventions = merged.api.model_dump()
+        for section in ("paths", "paging", "errors"):
+            conventions[section].update(getattr(override.api, section))
+        try:
+            merged.api = ApiConventions.model_validate(conventions)
+        except ValidationError as exc:
+            for error in exc.errors():
+                path = ("api",) + tuple(error["loc"])
+                message = error["msg"].removeprefix("Value error, ")
+                report.problems.append(override_file.problem(path, message))
+            return None, origins
+        origins[("api",)] = override_file
+
+    known = {rule.id for rule in merged.rules}
+    for index, rule_id in enumerate(override.remove_rules):
+        if rule_id not in known:
+            report.problems.append(
+                override_file.problem(("remove_rules", index), f"no rule '{rule_id}' to remove")
+            )
+    if override.remove_rules:
+        # Later rules move up; re-key their origins so errors keep pointing at their file.
+        position, kept = {}, []
+        for index, rule in enumerate(merged.rules):
+            if rule.id not in override.remove_rules:
+                position[index] = len(kept)
+                kept.append(rule)
+        merged.rules = kept
+        for key in [k for k in origins if k[:1] == ("rules",)]:
+            origin = origins.pop(key)
+            if key[1] in position:
+                origins[("rules", position[key[1]]) + key[2:]] = origin
     return merged, origins
 
 
