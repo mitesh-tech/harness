@@ -40,6 +40,7 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | API anatomy (S4a) | Done |
 | Spec and OpenAPI in the run folder (S4b) | Done |
 | Confirm and generate, tests first (S5a) | Done |
+| Verify, report, `harness run` (S5b) | Done |
 | Resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages

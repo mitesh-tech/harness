@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment, local database and tool caches
+.venv/
+*.db
+.pytest_cache/
+.ruff_cache/

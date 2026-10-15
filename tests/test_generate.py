@@ -1,12 +1,11 @@
 """Generation end to end, on a copy of the Bookstore app (runs its real tests with uv)."""
 
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
 import yaml
-from conftest import BOOKSTORE, edit
+from conftest import copy_bookstore, edit, git_init
 from typer.testing import CliRunner
 
 from harness.cli import app
@@ -15,12 +14,6 @@ from harness.knowledge.validate import validate_project
 from harness.resolve import ResolveError, confirm, find_run, read_spec, resolve_service
 
 runner = CliRunner()
-IGNORE = shutil.ignore_patterns(".venv", "runs", "*.db", "__pycache__", ".pytest_cache")
-
-
-def copy_bookstore(folder: Path) -> Path:
-    shutil.copytree(BOOKSTORE, folder, ignore=IGNORE)
-    return folder
 
 
 def confirmed_run(shop: Path, service: str) -> Path:
@@ -173,16 +166,7 @@ def test_only_a_confirmed_spec_is_generated(shop):
 
 
 def test_generates_into_a_worktree_on_its_own_branch(tmp_path):
-    repo = copy_bookstore(tmp_path / "shop")
-    for command in (
-        ["git", "init", "-q", "-b", "main"],
-        # CI machines have no git identity; a real project always has one
-        ["git", "config", "user.email", "test@example.com"],
-        ["git", "config", "user.name", "Test"],
-        ["git", "add", "-A"],
-        ["git", "commit", "-q", "-m", "start"],
-    ):
-        subprocess.run(command, cwd=repo, check=True)
+    repo = git_init(copy_bookstore(tmp_path / "shop"))
     folder = confirmed_run(repo, "add_review")
     try:
         generation = run_generate(repo, folder)
@@ -190,13 +174,10 @@ def test_generates_into_a_worktree_on_its_own_branch(tmp_path):
         assert generation.branch == f"harness/{folder.name}-add_review"
         assert generation.workspace == tmp_path / "shop-harness" / folder.name
         assert not (repo / "app/api/add_review.py").exists()  # your working tree is untouched
-        log = subprocess.run(
-            ["git", "log", "--oneline", "-1", generation.branch],
-            cwd=repo,
-            capture_output=True,
-            text=True,
-        ).stdout
-        assert f"harness: generate add_review (run {folder.name})" in log
+        head = subprocess.run(
+            ["git", "rev-parse", generation.branch], cwd=repo, capture_output=True, text=True
+        ).stdout.strip()
+        assert head == generation.base  # nothing is committed until verify passes
     finally:
         subprocess.run(
             ["git", "worktree", "remove", "--force", str(tmp_path / "shop-harness" / folder.name)],

@@ -28,7 +28,7 @@ def same(actual, expected) -> bool:
 
 def test_{{ case.slug }}({{ client }}, {{ session }}):
     """{{ case.name }} ({{ case.rule }})"""
-{% for g in case.given %}    {{ g.alias }} = create(
+{% for g in case.given %}    {% if g.used %}{{ g.alias }} = {% endif %}create(
         {{ session }}, "{{ g.entity }}", "{{ g.module }}", {{ g.fields }}{{ g.parents }}
     )
 {% endfor %}    response = {{ client }}.{{ case.method }}(

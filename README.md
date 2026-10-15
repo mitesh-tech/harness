@@ -2,7 +2,7 @@
 
 **Build backend APIs from tasks written in business language: deterministic where it can be, AI where it must be, approved by you where it matters.**
 
-> **Status: early development.** Today the CRUD API factory **understands** a task (classify), knows **where the data lives** (data mapping) and **designs** the API as a spec you can review (resolve). It **generates** tested code for create APIs from a spec you confirm; verifying, reporting and the other kinds come next (see the [plan](docs/plan.md)).
+> **Status: early development.** Today the CRUD API factory **understands** a task (classify), knows **where the data lives** (data mapping) and **designs** the API as a spec you can review (resolve). From a task, `harness run` designs the API, lets you confirm the spec, generates the code with its tests, verifies it against the spec and leaves a branch ready to merge; today for **create** APIs, with the other kinds next (see the [plan](docs/plan.md)).
 
 ## What you get
 
@@ -217,7 +217,7 @@ harness confirm 20261015-130930-4d0c --approve  # check it again and confirm (or
 
 Edit `spec.yaml` first if you want: answer open questions (record them under `answers:` and remove the question), replace a `<placeholder>`, change a test case. Approving checks the edited spec again; a spec changed after it was confirmed must be confirmed again.
 
-### 9. Generate the code: tests first
+### 9. Generate, verify, report
 
 ```bash
 harness generate 20261015-130930-4d0c            # into a new git worktree and branch
@@ -226,18 +226,31 @@ harness generate 20261015-130930-4d0c --in-place # or into the project itself
 
 ```
   wrote   tests/test_add_review.py        ← first, from the spec's tests
-  wrote   app/models/review.py
-  wrote   app/schemas/add_review.py
-  wrote   app/repositories/add_review.py
-  wrote   app/api/add_review.py
+  wrote   app/models/review.py, app/schemas/…, app/repositories/…, app/api/add_review.py
   wrote   app/rules/add_review.py         ← yours: business rules, never overwritten
-Tests     tests/test_add_review.py
-  before  4 failing, 0 passing  (should all fail)
-  after   4 passing, 0 failing
-OK: the code passes the tests from the spec.
+Tests     before  4 failing (should all fail)   after  4 passing
+Checks
+  ✓ spec tests     4 failed before the code, 4 pass after
+  ✓ project tests  8 passed
+  ✓ lint           10 generated files
+  ✓ contract       POST /books/{book_id}/reviews, 3 statuses, 2 fields in, 3 out
+  ✓ scope          13 files, all planned
+  ✓ untouched      9 generated files match
+Report    .harness/runs/20261015-134717-9e3a/report.md
+OK: ready to merge (commit 63aeda9).
 ```
 
-The tests are generated **from the confirmed spec**, before the code, and run once to show they fail; then the code is generated and the same tests must pass. Routers and models are registered between `# harness ↓` / `# harness ↑` markers in `app/main.py` and `app/models/__init__.py`; nothing else you wrote is edited. A hand-written model is reused only if it has every column `data.yaml` maps (otherwise generation stops and says what's missing), and a generated file you edited by hand is never overwritten. Today the CRUD factory generates **create** APIs; the other kinds come next.
+The tests are generated **from the confirmed spec**, before the code, and must fail; then the code is generated and the same tests must pass. Then it is **verified**: the project's whole test suite, lint, the **contract** (the app's own OpenAPI must describe exactly the API in the spec), **scope** (nothing outside the plan changed) and **untouched** (no generated file was edited). Only when everything passes is the branch committed; `report.md` says what was done, the result of each check, and what to do next. After fixing something in the worktree, `harness verify <run>` checks again.
+
+Routers and models are registered between `# harness ↓` / `# harness ↑` markers in `app/main.py` and `app/models/__init__.py`; nothing else you wrote is edited. A hand-written model is reused only if it has every column `data.yaml` maps, and a generated file you edited is never overwritten. Today the CRUD factory generates **create** APIs; the other kinds come next.
+
+### All in one: `harness run`
+
+```bash
+harness run "Let staff add a new publisher through a new endpoint"
+```
+
+Resolves the task, shows you the spec and asks **approve / edit / reject** (edit opens `spec.yaml` in your `$EDITOR`), then generates, verifies and reports. `--approve` skips the question, but only when nothing in the spec is open.
 
 ## Customising
 
@@ -265,7 +278,9 @@ Overrides contain only what differs; `harness validate` lists the override file 
 | `harness classify "task" [--trace] [-v] [--json] [--trace-out f]` | classify a task, with an explained trace |
 | `harness resolve "task"` / `--service NAME` | design the API and save a spec, an OpenAPI document and the trace in `.harness/runs/<id>/` |
 | `harness confirm RUN [--approve \| --reject]` | review a spec, then confirm or reject it |
-| `harness generate RUN [--in-place]` | generate tests (must fail) then code (must pass) from a confirmed spec |
+| `harness run "task" [--approve] [--in-place]` | everything: resolve, confirm (asks you), generate, verify, report |
+| `harness generate RUN [--in-place]` | from a confirmed spec: tests (must fail), code (must pass), verify, report |
+| `harness verify RUN` | check generated code against its spec again; commit when all passes |
 | `harness override SECTION.NAME` | start a project override from the factory's entry |
 | `harness eval classify` | run the project's eval cases against SemIf |
 | `harness kb query "goal"` / `harness kb export` | ask the knowledge as Prolog, or export it |

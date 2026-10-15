@@ -4,7 +4,7 @@
 {{ line }}
 {%- endfor %}
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict{{ ', Field' if uses_field else '' }}
 
 
 class {{ request_class }}(BaseModel):

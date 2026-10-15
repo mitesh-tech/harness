@@ -388,7 +388,7 @@ def confirm(
     project: ProjectOption = Path("."),
 ) -> None:
     """Review a run's spec, then approve it (after checking it again) or reject it."""
-    from harness.resolve import ResolveError, find_run, read_spec, spec_problems
+    from harness.resolve import ResolveError, find_run
     from harness.resolve import confirm as confirm_spec
 
     if approve and reject:
@@ -406,10 +406,19 @@ def confirm(
     except ResolveError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
+    _show_spec(report, folder)
+    typer.echo(
+        f"Next      edit the spec if needed, then: harness confirm {run} --approve  (or --reject)"
+    )
+
+
+def _show_spec(report: Report, folder: Path) -> list[str]:
+    """Print a spec's summary; returns what still stops it from being confirmed."""
+    from harness.resolve import read_spec, spec_problems
 
     spec = read_spec(folder)
     api = spec["api"]
-    typer.echo(f"Run       {run}   status: {spec['status']}")
+    typer.echo(f"Run       {folder.name}   status: {spec['status']}")
     typer.echo(f"Task      {spec['task']}")
     name = spec["service"]["name"] + (" (new)" if spec["service"]["new"] else "")
     typer.echo(f"Service   {name}")
@@ -421,9 +430,7 @@ def confirm(
     if problems:
         typer.echo("To do     " + "\n          ".join(problems))
     typer.echo(f"Spec      {_show(report, folder / 'spec.yaml')}")
-    typer.echo(
-        f"Next      edit the spec if needed, then: harness confirm {run} --approve  (or --reject)"
-    )
+    return problems
 
 
 @app.command()
@@ -435,18 +442,94 @@ def generate(
     ] = False,
     project: ProjectOption = Path("."),
 ) -> None:
-    """Generate code from a confirmed spec: its tests first (they must fail), then the code."""
-    from harness.generate import GenerateError
-    from harness.generate import generate as generate_code
-    from harness.resolve import ResolveError, find_run
+    """Generate code from a confirmed spec (tests first), then verify it and report."""
+    from harness.resolve import find_run
 
     report = _valid_knowledge(project)
-    try:
-        result = generate_code(report, find_run(report, run), in_place=in_place)
-    except (ResolveError, GenerateError) as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
+    folder = _or_exit(lambda: find_run(report, run))
+    _generate_and_verify(report, folder, in_place)
 
+
+@app.command()
+def verify(
+    run: Annotated[str, typer.Argument(help="The run id of a generated spec.")],
+    project: ProjectOption = Path("."),
+) -> None:
+    """Check generated code against its spec again, commit it if all passes, and report."""
+    from harness.resolve import find_run
+    from harness.verify import verify as verify_run
+
+    report = _valid_knowledge(project)
+    folder = _or_exit(lambda: find_run(report, run))
+    result = _or_exit(lambda: verify_run(report, folder))
+    _show_verification(report, result)
+
+
+@app.command(name="run")
+def run_task(
+    task: Annotated[str, typer.Argument(help="The task, in business language.")],
+    approve: Annotated[
+        bool,
+        typer.Option(
+            "--approve", help="Confirm the spec without asking (only if nothing is open)."
+        ),
+    ] = False,
+    in_place: Annotated[
+        bool,
+        typer.Option("--in-place", help="Write into the project itself, not a new git worktree."),
+    ] = False,
+    project: ProjectOption = Path("."),
+) -> None:
+    """From a task to verified code: resolve, confirm (you), generate, verify, report."""
+    import os
+    import subprocess
+
+    from harness.resolve import confirm as confirm_spec
+    from harness.resolve import resolve_task
+
+    report = _valid_knowledge(project)
+    run = _or_exit(lambda: resolve_task(report, task, make_model(report)))
+    if run.stopped:
+        outcome = run.trace.outcome
+        typer.echo(f"Outcome   {outcome.upper()}: nothing to design")
+        typer.echo(f"          {HINTS.get(outcome) or 'a person needs to decide.'}")
+        raise typer.Exit(2)
+    folder = run.folder
+    while True:
+        problems = _show_spec(report, folder)
+        if approve:
+            if problems:
+                typer.echo("Not confirmed: the spec has open points (see To do).", err=True)
+                raise typer.Exit(2)
+            choice = "a"
+        else:
+            choice = (
+                typer.prompt(
+                    "Approve, edit or reject the spec? [a/e/r]", default="e" if problems else "a"
+                )
+                .strip()
+                .lower()[:1]
+            )
+        if choice == "r":
+            confirm_spec(report, folder, approve=False)
+            typer.echo("Rejected: nothing was generated.")
+            raise typer.Exit(2)
+        if choice == "e":
+            editor = os.environ.get("VISUAL") or os.environ.get("EDITOR") or "vi"
+            subprocess.run([*editor.split(), str(folder / "spec.yaml")], check=False)
+            continue
+        if choice == "a":
+            spec = _or_exit(lambda: confirm_spec(report, folder, approve=True))
+            typer.echo(f"Run {folder.name}: spec {spec['status']}.")
+            break
+    _generate_and_verify(report, folder, in_place)
+
+
+def _generate_and_verify(report: Report, folder: Path, in_place: bool) -> None:
+    from harness.generate import generate as generate_code
+    from harness.verify import verify as verify_run
+
+    result = _or_exit(lambda: generate_code(report, folder, in_place=in_place))
     where = (
         result.workspace
         if result.branch is None
@@ -460,16 +543,43 @@ def generate(
     red, green = result.red, result.green
     typer.echo(f"Tests     {result.test_file}")
     typer.echo(f"  before  {len(red.failed)} failing, {len(red.passed)} passing  (should all fail)")
-    for name in red.passed:
-        typer.echo(f"          ! {name} passed before the code existed: it tests nothing")
     typer.echo(f"  after   {len(green.passed)} passing, {len(green.failed)} failing")
-    for name in green.failed:
-        typer.echo(f"          ✗ {name}")
     if not result.ok:
         typer.echo(green.output, err=True)
         typer.echo("FAILED: the generated code does not pass its tests.", err=True)
         raise typer.Exit(1)
-    typer.echo("OK: the code passes the tests from the spec.")
+    _show_verification(report, _or_exit(lambda: verify_run(report, folder)))
+
+
+def _show_verification(report: Report, result) -> None:
+    marks = {"pass": "✓", "fail": "✗", "skip": "–"}
+    typer.echo("Checks")
+    for check in result.checks:
+        typer.echo(f"  {marks[check.status]} {check.name:<14} {check.detail}")
+        for item in check.items:
+            typer.echo(f"      {item}")
+    for warning in result.warnings:
+        typer.echo(f"  ! {warning}")
+    typer.echo(f"Report    {_show(report, result.report)}")
+    if not result.ok:
+        typer.echo("FAILED: not ready to merge; see the report.", err=True)
+        raise typer.Exit(1)
+    done = f"commit {result.commit}" if result.commit else "not committed (in place)"
+    typer.echo(f"OK: ready to merge ({done}).")
+
+
+def _or_exit(step):
+    """Run one step; on a harness error, print it and stop."""
+    from harness.generate import GenerateError
+    from harness.logic.engine import PrologUnavailable
+    from harness.resolve import ResolveError
+    from harness.semif.client import DecisionModelError
+
+    try:
+        return step()
+    except (ResolveError, GenerateError, PrologUnavailable, DecisionModelError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
 
 
 OVERRIDE_HEADER = (
