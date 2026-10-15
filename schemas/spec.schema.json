@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "SpecService": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "new": {
+          "title": "New",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "new"
+      ],
+      "title": "SpecService",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "spec.yaml: the cover sheet the platform adds, and the factory's design.",
+  "properties": {
+    "run": {
+      "minLength": 1,
+      "title": "Run",
+      "type": "string"
+    },
+    "task": {
+      "minLength": 1,
+      "title": "Task",
+      "type": "string"
+    },
+    "factory": {
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "title": "Factory",
+      "type": "string"
+    },
+    "status": {
+      "default": "draft",
+      "enum": [
+        "draft",
+        "confirmed",
+        "rejected"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "created": {
+      "minLength": 1,
+      "title": "Created",
+      "type": "string"
+    },
+    "service": {
+      "$ref": "#/$defs/SpecService"
+    },
+    "kind": {
+      "minLength": 1,
+      "title": "Kind",
+      "type": "string"
+    },
+    "target": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target"
+    },
+    "parent": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent"
+    },
+    "association": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Association"
+    },
+    "details": {
+      "additionalProperties": true,
+      "title": "Details",
+      "type": "object"
+    },
+    "api": {
+      "additionalProperties": true,
+      "title": "Api",
+      "type": "object"
+    },
+    "data": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Data"
+    },
+    "delete_effects": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Delete Effects",
+      "type": "array"
+    },
+    "components": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Components",
+      "type": "array"
+    },
+    "tests": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Tests",
+      "type": "array"
+    },
+    "open_questions": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Open Questions",
+      "type": "array"
+    },
+    "sources": {
+      "additionalProperties": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Sources",
+      "type": "object"
+    }
+  },
+  "required": [
+    "run",
+    "task",
+    "factory",
+    "created",
+    "service",
+    "kind",
+    "api"
+  ],
+  "title": "Spec",
+  "type": "object"
+}

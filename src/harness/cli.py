@@ -331,20 +331,20 @@ def _classify(report: Report, task: str):
 
 @app.command()
 def resolve(
+    task: Annotated[str | None, typer.Argument(help="The task, in business language.")] = None,
     service: Annotated[
         str | None,
-        typer.Option("--service", "-s", help="Resolve this existing service (no SemIf needed)."),
+        typer.Option("--service", "-s", help="Design this existing service instead (no SemIf)."),
     ] = None,
     project: ProjectOption = Path("."),
 ) -> None:
-    """Design a service's API: path, parameters, body, response, errors, data, delete effects."""
-    import yaml
-
+    """Design a task's API and save it as a spec in .harness/runs/<id>/."""
     from harness.logic.engine import PrologUnavailable
-    from harness.resolve import ResolveError, design_service
+    from harness.resolve import ResolveError, resolve_service, resolve_task
+    from harness.semif.client import DecisionModelError
 
-    if service is None:
-        typer.echo("Give a service with --service (resolving a task comes in S4b).", err=True)
+    if (task is None) == (service is None):
+        typer.echo("Give a task, or an existing service with --service.", err=True)
         raise typer.Exit(1)
     report = validate_project(project)
     if not report.ok or report.domain is None or report.technical is None:
@@ -352,11 +352,30 @@ def resolve(
         typer.echo("The knowledge has errors; fix them first (see `harness validate`).", err=True)
         raise typer.Exit(1)
     try:
-        design = design_service(report, service)
-    except (ResolveError, PrologUnavailable) as exc:
+        if service is not None:
+            run = resolve_service(report, service)
+        else:
+            run = resolve_task(report, task, make_model(report))
+    except (ResolveError, PrologUnavailable, DecisionModelError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
-    typer.echo(yaml.safe_dump(design.to_dict(), sort_keys=False, allow_unicode=True), nl=False)
+
+    if run.stopped:
+        outcome = run.trace.outcome
+        typer.echo(f"Outcome   {outcome.upper()}: nothing to design")
+        hint = HINTS.get(outcome) or "a person needs to decide (see `harness classify --trace`)."
+        typer.echo(f"          {hint}")
+        raise typer.Exit(2)
+    spec = run.spec
+    name = spec["service"]["name"] + (" (new)" if spec["service"]["new"] else "")
+    typer.echo(f"Service   {name}")
+    typer.echo(f"API       {spec['api']['method']} {spec['api']['path']}")
+    if spec["open_questions"]:
+        typer.echo("Open      " + "\n          ".join(spec["open_questions"]))
+    else:
+        typer.echo("Open      no open questions")
+    folder = _show(report, run.folder)
+    typer.echo(f"Saved     {folder}/spec.yaml, openapi.yaml, trace.jsonl")
 
 
 OVERRIDE_HEADER = (

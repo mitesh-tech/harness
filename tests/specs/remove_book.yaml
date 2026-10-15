@@ -1,0 +1,65 @@
+task: Delete a book through a new endpoint
+factory: crud-api
+status: draft
+service:
+  name: remove_book
+  new: true
+kind: delete
+target: Book
+api:
+  method: DELETE
+  path: /books/{book_id}
+  path_params:
+    book_id:
+      type: id
+      refers_to: Book
+  response:
+    status: 204
+    shape: none
+  errors:
+  - status: 404
+    when: no Book has this book_id
+    rule: not-found
+data:
+  source: bookstore_db
+  type: relational
+  table: books
+  columns:
+    id: id
+    isbn: isbn
+    title: title
+    author: author
+    price: price
+    status: status
+  operation: delete_row
+delete_effects:
+- effect: cascade
+  affects: Review
+  means: its Reviews are deleted with it
+  rule: composition-cascade
+- effect: remove_links
+  affects: collection_books
+  means: its collection_books links are removed; the other side stays
+  rule: link-rows-removed
+components:
+- name: serialization
+  rule: always-serialize
+- name: not_found_handling
+  rule: identifier-in-path
+- name: cascade_children
+  rule: composition-cascade
+tests:
+- deletes a Book → 204
+- no Book has this book_id → 404
+- 'after the delete: its Reviews are deleted with it'
+- 'after the delete: its collection_books links are removed; the other side stays'
+open_questions: []
+sources:
+  api.method: kind delete
+  api.path: rule item-path
+  api.path_params.book_id: rule identifier-in-path
+  api.response.status: kind delete
+  api.response.shape: rule no-content
+  data: data.yaml
+  tests: 'derived from the design: one success case, one per error'
+  service.name: 'rule: kind delete names services remove_{entity}'

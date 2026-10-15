@@ -1,0 +1,65 @@
+task: Let staff add a new publisher through a new endpoint
+factory: crud-api
+status: draft
+service:
+  name: add_publisher
+  new: true
+kind: create
+target: Publisher
+api:
+  method: POST
+  path: /publishers
+  request:
+    fields:
+      name:
+        type: text
+        required: true
+        unique: true
+  response:
+    status: 201
+    shape: item
+    fields:
+      id:
+        type: id
+        generated: true
+      name:
+        type: text
+        required: true
+        unique: true
+    headers:
+    - Location
+  errors:
+  - status: 422
+    when: invalid or missing fields
+    rule: invalid-body
+  - status: 409
+    when: another Publisher already has this name
+    rule: unique-taken
+data:
+  source: bookstore_db
+  type: relational
+  table: publishers
+  columns:
+    id: id
+    name: name
+  operation: insert_row
+components:
+- name: serialization
+  rule: always-serialize
+- name: body_validation
+  rule: create-validates-body
+tests:
+- creates a Publisher → 201 with Location
+- invalid or missing fields → 422
+- another Publisher already has this name → 409
+open_questions: []
+sources:
+  api.method: kind create
+  api.path: rule collection-path
+  api.request.fields.name: rule create-body; details from domain.yaml Publisher.name
+  api.response.status: kind create
+  api.response.shape: rule item-response
+  api.response.fields: rule item-response
+  data: data.yaml
+  tests: 'derived from the design: one success case, one per error'
+  service.name: 'rule: kind create names services add_{entity}'

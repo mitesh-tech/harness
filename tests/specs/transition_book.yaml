@@ -1,0 +1,83 @@
+service:
+  name: <verb>_book
+  new: true
+kind: transition
+target: Book
+details:
+  moves: archived -> active
+api:
+  method: PATCH
+  path: /books/{book_id}/<verb>
+  path_params:
+    book_id:
+      type: id
+      refers_to: Book
+  response:
+    status: 200
+    shape: item
+    fields:
+      id:
+        type: id
+        generated: true
+      isbn:
+        type: text
+        unique: true
+      title:
+        type: text
+        required: true
+      author:
+        type: text
+        required: true
+      price:
+        type: money
+        required: true
+        min: 0
+      status:
+        type: text
+        one_of:
+        - active
+        - archived
+  errors:
+  - status: 404
+    when: no Book has this book_id
+    rule: not-found
+  - status: 409
+    when: Book can't move from its current stage to that one
+    rule: transition-guard
+data:
+  source: bookstore_db
+  type: relational
+  table: books
+  columns:
+    id: id
+    isbn: isbn
+    title: title
+    author: author
+    price: price
+    status: status
+  operation: update_row
+components:
+- name: serialization
+  rule: always-serialize
+- name: not_found_handling
+  rule: identifier-in-path
+- name: transition_guard
+  rule: transition-guard
+tests:
+- moves a Book to another stage → 200
+- no Book has this book_id → 404
+- Book can't move from its current stage to that one → 409
+sources:
+  api.method: kind transition
+  api.path: rule transition-verb-in-path
+  api.path_params.book_id: rule identifier-in-path
+  api.response.status: kind transition
+  api.response.shape: rule item-response
+  api.response.fields: rule item-response
+  data: data.yaml
+  tests: 'derived from the design: one success case, one per error'
+  service.name: open question
+  details: SemIf yes/no questions about the task
+open_questions:
+- What should the new service be called? Kind transition names services {verb}_{entity}; the verb is not
+  known yet

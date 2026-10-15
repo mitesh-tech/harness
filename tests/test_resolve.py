@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from harness.cli import app
 from harness.knowledge.validate import validate_project
-from harness.resolve import ResolveError, design_service
+from harness.resolve import ResolveError, factory_design
 
 runner = CliRunner()
 
@@ -14,6 +14,10 @@ def bookstore():
     report = validate_project(BOOKSTORE)
     assert report.ok
     return report
+
+
+def design_service(report, service):
+    return factory_design(report.factories["crud-api"]).design_service(report, service)
 
 
 def design(report, service) -> dict:
@@ -141,7 +145,7 @@ def test_delete_cascades_to_composition_children(project):
         "    kind: delete\n    acts_on: Book\n\n  # community",
     )
     effects = design(validate_project(project), "remove_book")["delete_effects"]
-    assert [(e["effect"], e["on"]) for e in effects] == [
+    assert [(e["effect"], e["affects"]) for e in effects] == [
         ("cascade", "Review"),
         ("remove_links", "collection_books"),
     ]
@@ -163,7 +167,7 @@ def test_delete_is_restricted_while_referenced(project):
     assert result["delete_effects"] == [
         {
             "effect": "restrict",
-            "on": "Book",
+            "affects": "Book",
             "means": "refused (409) while Books point at it",
             "rule": "reference-restrict",
         }
@@ -334,8 +338,9 @@ def test_version_range_must_be_valid(project):
 def test_cli_resolve(project):
     result = runner.invoke(app, ["resolve", "--service", "add_review", "-p", str(project)])
     assert result.exit_code == 0, result.output
-    assert "path: /books/{book_id}/reviews" in result.output
-    assert "api.path: rule collection-path" in result.output
+    assert "API       POST /books/{book_id}/reviews" in result.output
+    spec = next((project / ".harness/runs").glob("*/spec.yaml")).read_text()
+    assert "api.path: rule collection-path" in spec
 
 
 def test_cli_resolve_unknown_service(project):

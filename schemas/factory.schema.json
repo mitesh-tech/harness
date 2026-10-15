@@ -45,6 +45,19 @@
       "default": null,
       "title": "Rules"
     },
+    "design": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Design"
+    },
     "checks": {
       "default": "checks.pl",
       "minLength": 1,

@@ -2,7 +2,7 @@
 
 **Build backend APIs from tasks written in business language: deterministic where it can be, AI where it must be, approved by you where it matters.**
 
-> **Status: early development.** Today the CRUD API factory **understands** a task (classify), knows **where the data lives** (data mapping) and **designs** the API (resolve). Generating the code from a design you confirm comes next (stage S5 in the [plan](docs/plan.md)).
+> **Status: early development.** Today the CRUD API factory **understands** a task (classify), knows **where the data lives** (data mapping) and **designs** the API as a spec you can review (resolve). Generating the code from a design you confirm comes next (stage S5 in the [plan](docs/plan.md)).
 
 ## What you get
 
@@ -179,19 +179,34 @@ Outcome   NEW_SERVICE: Publisher › bookstore_db › create › create › add_
 | Outcome | Means | You |
 |---|---|---|
 | `MATCHED` | an existing service does this | resolve it |
-| `NEW_SERVICE` | a new API, named by rule | resolve it (S4b) |
+| `NEW_SERVICE` | a new API, named by rule | resolve it |
 | `UNSURE` | SemIf isn't sure enough | decide |
 | `NO_ENTITY` | the domain has nothing that fits | change the domain first |
 | `NO_MAPPING` | `data.yaml` doesn't say where it's stored | add its entry |
 | `UNSUPPORTED` | no factory handles it (or only a planned one, like domain changes) | out of scope for now |
 
-### 7. Design the API
+### 7. Design the API: a spec to review
 
 ```bash
-harness resolve --service add_book
+harness resolve "Readers should be able to change their rating of a book through a new endpoint"
 ```
 
-The design follows the [CRUD factory's design decisions](docs/factories/crud-api.md#design-decisions): the identifier is a path parameter, query parameters only filter and page lists, a list shows each item's summary, composition children are nested, deletes cascade or are restricted by your `on_delete`.
+```
+Service   change_review_rating (new)
+API       PATCH /books/{book_id}/reviews/{review_id}
+Open      Does the task change the comment of a Review? (SemIf 0.32)
+Saved     .harness/runs/20261015-130930-4d0c/spec.yaml, openapi.yaml, trace.jsonl
+```
+
+`resolve` classifies the task; for a **new** service it asks SemIf yes/no questions about the details the task states (which attributes change, which filters a list has), and anything SemIf isn't sure about becomes an **open question** instead of a guess. Then it designs the API and saves a run folder (kept out of git automatically):
+
+| File | What it is |
+|---|---|
+| `spec.yaml` | the design: API, data, delete effects, tests to verify it, open questions, and the source of every value; the only input to code generation (S5), after you confirm it |
+| `openapi.yaml` | the same API as an OpenAPI 3.1 document, made from the spec, for Swagger UI, client generators and contract tests |
+| `trace.jsonl` | every decision, from classification to design |
+
+`harness resolve --service add_book` designs an existing service without SemIf. The design follows the [CRUD factory's design decisions](docs/factories/crud-api.md#design-decisions): the identifier is a path parameter, query parameters only filter and page lists, a list shows each item's summary, composition children are nested, deletes cascade or are restricted by your `on_delete`.
 
 ## Customising
 
@@ -217,7 +232,7 @@ Overrides contain only what differs; `harness validate` lists the override file 
 |---|---|
 | `harness validate [--introspect] [--strict]` | check the project's knowledge (and data sources) |
 | `harness classify "task" [--trace] [-v] [--json] [--trace-out f]` | classify a task, with an explained trace |
-| `harness resolve --service NAME` | design an existing service's API |
+| `harness resolve "task"` / `--service NAME` | design the API and save a spec, an OpenAPI document and the trace in `.harness/runs/<id>/` |
 | `harness override SECTION.NAME` | start a project override from the factory's entry |
 | `harness eval classify` | run the project's eval cases against SemIf |
 | `harness kb query "goal"` / `harness kb export` | ask the knowledge as Prolog, or export it |

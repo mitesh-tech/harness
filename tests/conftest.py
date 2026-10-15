@@ -41,7 +41,9 @@ def project(tmp_path: Path) -> Path:
     root = tmp_path / "bookstore"
     root.mkdir()
     shutil.copy(BOOKSTORE / "harness.yaml", root)
-    shutil.copytree(BOOKSTORE / ".harness", root / ".harness")
+    shutil.copytree(
+        BOOKSTORE / ".harness", root / ".harness", ignore=shutil.ignore_patterns("runs")
+    )
     return root
 
 
