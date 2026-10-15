@@ -58,3 +58,29 @@ def edit(path: Path, old: str, new: str) -> None:
     text = path.read_text()
     assert old in text, f"{old!r} not found in {path.name}"
     path.write_text(text.replace(old, new, 1))
+
+
+# ── Copies of the whole Bookstore app, for generate and verify ─────
+
+APP_IGNORE = shutil.ignore_patterns(".venv", "runs", "*.db", "__pycache__", ".pytest_cache")
+
+
+def copy_bookstore(folder: Path) -> Path:
+    """The Bookstore app with its knowledge, without local files (venv, runs, database)."""
+    shutil.copytree(BOOKSTORE, folder, ignore=APP_IGNORE)
+    return folder
+
+
+def git_init(repo: Path) -> Path:
+    """Make a folder a git repository with one commit (CI machines have no git identity)."""
+    import subprocess
+
+    for command in (
+        ["git", "init", "-q", "-b", "main"],
+        ["git", "config", "user.email", "test@example.com"],
+        ["git", "config", "user.name", "Test"],
+        ["git", "add", "-A"],
+        ["git", "commit", "-q", "-m", "start"],
+    ):
+        subprocess.run(command, cwd=repo, check=True)
+    return repo

@@ -973,6 +973,7 @@ def generation_plan(spec: dict, pack, templates: dict[str, Path]) -> dict:
             shared
             | {
                 "schema_imports": sorted(set(schema_imports + response_imports)),
+                "uses_field": any("Field(" in f["default"] for f in request_list + response_list),
                 "request_fields": request_list,
                 "response_fields": response_list,
             },
@@ -995,6 +996,10 @@ def generation_plan(spec: dict, pack, templates: dict[str, Path]) -> dict:
                 "location": api["path"] + "/{row." + identifier + "}",
                 "not_found": statuses.get("not-found", 404),
                 "conflict": statuses.get("unique-taken", 409),
+                "errors": [
+                    {"status": status, "description": "; ".join(whens)}
+                    for status, whens in _errors_by_status(api.get("errors", [])).items()
+                ],
             },
         ),
         _file(
@@ -1147,11 +1152,18 @@ def _test_context(spec: dict, pack) -> dict:
     for case in spec.get("tests", []):
         request, expect = case["request"], case["expect"]
         given = []
+        # a row is named only if the request path or a later row refers to it
+        referred = (
+            request["path"]
+            + " "
+            + " ".join(str(s.get("within", "")) for s in case.get("given", []))
+        )
         for step in case.get("given", []):
             parents = f", {parent_key}={step['within']}.id" if step.get("within") else ""
             given.append(
                 {
                     "alias": step["as"],
+                    "used": f"{{{step['as']}." in referred or step["as"] in referred.split(),
                     "entity": step["create"],
                     "module": snake(step["create"]),
                     "fields": repr(step.get("with", {})),
@@ -1179,3 +1191,109 @@ def _test_context(spec: dict, pack) -> dict:
         "client": pack.manifest.fixtures.get("client", "client"),
         "session": pack.manifest.fixtures.get("session", "session"),
     }
+
+
+# ── Verify and report: what only this factory knows ─────────────────
+
+
+def verify(spec: dict, tools) -> list:
+    """The contract: the app's own OpenAPI must describe the API the spec designed."""
+    from harness.verify import Check
+
+    try:
+        actual = tools.app_openapi()
+    except Exception as exc:  # the app can't be built: that is a failed contract
+        return [Check("contract", "fail", f"the app's OpenAPI could not be read: {exc}")]
+    expected = to_openapi(spec)
+    path, method = spec["api"]["path"], spec["api"]["method"].lower()
+    operation = actual.get("paths", {}).get(path, {}).get(method)
+    if operation is None:
+        return [Check("contract", "fail", f"the app has no {method.upper()} {path}")]
+    want = expected["paths"][path][method]
+    differences = []
+
+    statuses = set(want["responses"])
+    found = set(operation.get("responses", {}))
+    if statuses - found:
+        differences.append(f"statuses missing in the app: {', '.join(sorted(statuses - found))}")
+    if found - statuses:
+        differences.append(f"statuses not in the spec: {', '.join(sorted(found - statuses))}")
+
+    if "requestBody" in want:
+        wanted = _schema_of(expected, want["requestBody"])
+        got = _schema_of(actual, operation.get("requestBody", {}))
+        differences += _compare_fields("request", wanted, got, required_too=True)
+    success = str(spec["api"]["response"]["status"])
+    if "content" in want["responses"].get(success, {}):
+        wanted = _schema_of(expected, want["responses"][success])
+        got = _schema_of(actual, operation.get("responses", {}).get(success, {}))
+        differences += _compare_fields("response", wanted, got, required_too=False)
+
+    if differences:
+        return [Check("contract", "fail", "the app differs from the spec", differences)]
+    fields_in = len(spec["api"].get("request", {}).get("fields", {}))
+    fields_out = len(spec["api"]["response"].get("fields", {}))
+    detail = (
+        f"{method.upper()} {path}, {len(statuses)} statuses, {fields_in} fields in, "
+        f"{fields_out} out"
+    )
+    return [Check("contract", "pass", detail)]
+
+
+def _schema_of(document: dict, holder: dict) -> dict:
+    """The object schema in a request body or response, following a $ref."""
+    content = holder.get("content", {})
+    media = next(iter(content.values()), {})
+    schema = media.get("schema", {})
+    ref = schema.get("$ref")
+    if ref:
+        schema = document.get("components", {}).get("schemas", {}).get(ref.split("/")[-1], {})
+    return schema
+
+
+def _compare_fields(where: str, wanted: dict, got: dict, required_too: bool) -> list[str]:
+    differences = []
+    want_props, got_props = set(wanted.get("properties", {})), set(got.get("properties", {}))
+    if want_props - got_props:
+        differences.append(
+            f"{where} fields missing in the app: {', '.join(sorted(want_props - got_props))}"
+        )
+    if got_props - want_props:
+        differences.append(
+            f"{where} fields not in the spec: {', '.join(sorted(got_props - want_props))}"
+        )
+    if required_too:
+        want_req, got_req = set(wanted.get("required", [])), set(got.get("required", []))
+        if want_req != got_req:
+            differences.append(
+                f"{where} required fields differ: spec {sorted(want_req)}, app {sorted(got_req)}"
+            )
+    return differences
+
+
+def summary(spec: dict) -> dict:
+    """The report's design line and the next steps only this factory knows."""
+    api = spec["api"]
+    errors = ", ".join(f"{e['status']} {e['when']}" for e in api.get("errors", []))
+    line = f"{api['method']} {api['path']} → {api['response']['status']}"
+    if errors:
+        line += f" ({errors})"
+    steps = []
+    service = spec["service"]
+    if service["new"]:
+        entry = {"description": spec["task"], "kind": spec["kind"]}
+        if spec.get("target") and not spec.get("association"):
+            entry["acts_on"] = spec["target"]
+        if spec.get("association"):
+            entry["association"] = spec["association"]
+        if spec.get("parent"):
+            entry["within"] = spec["parent"]
+        for key in ("changes", "filters"):
+            if spec.get("details", {}).get(key):
+                entry[key] = spec["details"][key]
+        listed = ", ".join(f"{k}: {v}" for k, v in entry.items())
+        steps.append(
+            "Record the new service in .harness/domain.yaml › services, so the next task "
+            f"finds it (S8 will do this for you):\n       {service['name']}: {{ {listed} }}"
+        )
+    return {"design": line, "next": steps}

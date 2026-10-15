@@ -30,6 +30,11 @@ markers:
 commands:
   test: [uv, run, pytest, -q]
   lint: [uv, run, ruff, check]
+  python: [uv, run, python]   # runs code in the project's own environment
+
+# How to build the app, to compare its own OpenAPI with the spec's.
+app_factory: "app.main:create_app"
+app_factory_args: ["sqlite://"]   # an in-memory database: nothing is written
 
 # The project's test fixtures generated tests use.
 fixtures:

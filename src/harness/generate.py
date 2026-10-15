@@ -12,12 +12,13 @@ tree is untouched until you merge; `in_place` writes into the project itself.
 
 import ast
 import hashlib
+import json
 import re
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import yaml
@@ -55,11 +56,13 @@ class TestRun:
 class Generation:
     workspace: Path  # the project folder the code was written into
     branch: str | None  # the worktree's branch, or None when in place
+    base: str | None = None  # the commit the worktree started from
     written: list[str] = field(default_factory=list)
     kept: list[str] = field(default_factory=list)  # existing files left as they are
     red: TestRun = field(default_factory=TestRun)  # before the code: should all fail
     green: TestRun = field(default_factory=TestRun)  # after: should all pass
     test_file: str = ""
+    registration: list[str] = field(default_factory=list)  # files with marker blocks
 
     @property
     def ok(self) -> bool:
@@ -84,10 +87,10 @@ def generate(
     }
     plan = factory_design(factory).generation_plan(spec, pack, templates)
 
-    project, branch = _workspace(report, folder.name, spec, in_place, run)
-    result = Generation(project, branch)
+    project, branch, base = _workspace(report, folder.name, spec, in_place, run)
+    result = Generation(project, branch, base)
     knowledge = project / report.settings.knowledge
-    registry = _load_registry(knowledge / REGISTRY)
+    registry = load_registry(knowledge / REGISTRY)
     header = HEADER.format(run=folder.name, spec=digest[:19])
     environment = Environment(
         loader=FileSystemLoader("/"),
@@ -111,7 +114,7 @@ def generate(
     for item in tests:
         _write(project, item, environment, header, registry, folder.name, digest, result)
     result.test_file = tests[0]["target"] if tests else ""
-    result.red = _run_tests(project, pack, result.test_file, run)
+    result.red = run_tests(project, pack, result.test_file, run)
     if not result.red.collected:
         raise GenerateError(
             f"the tests generated from the spec can't be loaded, so no code was written:\n"
@@ -124,16 +127,38 @@ def generate(
             _write(project, item, environment, header, registry, folder.name, digest, result)
     _register(project / pack.manifest.registration.routers, plan["register"]["routers"], pack)
     _register(project / pack.manifest.registration.models, plan["register"]["models"], pack)
-    result.green = _run_tests(project, pack, result.test_file, run)
+    result.green = run_tests(project, pack, result.test_file, run)
 
     knowledge.mkdir(parents=True, exist_ok=True)
     (knowledge / REGISTRY).write_text(_registry_text(registry))
+    result.registration = [
+        pack.manifest.registration.routers,
+        pack.manifest.registration.models,
+    ]
     _trace(folder, result)
-    if branch and result.ok:
-        message = f"harness: generate {spec['service']['name']} (run {folder.name})"
-        _git(project, ["add", "-A", "."], run)
-        _git(project, ["commit", "-q", "-m", message], run)
+    save(folder, result)  # verify (and `harness verify <run>`) picks up from here
     return result
+
+
+STATE = "generation.json"  # in the run folder
+
+
+def save(folder: Path, result: Generation) -> None:
+    data = asdict(result)
+    data["workspace"] = str(result.workspace)
+    (folder / STATE).write_text(json.dumps(data, indent=2) + "\n")
+
+
+def load(folder: Path) -> Generation:
+    path = folder / STATE
+    if not path.is_file():
+        raise GenerateError(
+            f"run {folder.name} has not been generated: harness generate {folder.name}"
+        )
+    data = json.loads(path.read_text())
+    data["workspace"] = Path(data["workspace"])
+    data["red"], data["green"] = TestRun(**data["red"]), TestRun(**data["green"])
+    return Generation(**data)
 
 
 # ── Where the code is written ───────────────────────────────────────
@@ -141,8 +166,8 @@ def generate(
 
 def _workspace(report: Report, run_id: str, spec: dict, in_place: bool, run: Runner):
     if in_place:
-        return report.root, None
-    top = _git(report.root, ["rev-parse", "--show-toplevel"], run).strip()
+        return report.root, None, None
+    top = git(report.root, ["rev-parse", "--show-toplevel"], run).strip()
     if not top:
         raise GenerateError("the project is not in a git repository; use --in-place")
     repo = Path(top)
@@ -154,11 +179,12 @@ def _workspace(report: Report, run_id: str, spec: dict, in_place: bool, run: Run
             f"{path} already exists from an earlier generate; remove it with "
             f"`git worktree remove {path}` (and its branch {branch}) to generate again"
         )
-    _git(repo, ["worktree", "add", "-q", "-b", branch, str(path), "HEAD"], run)
-    return path / report.root.relative_to(repo), branch
+    base = git(repo, ["rev-parse", "HEAD"], run).strip()
+    git(repo, ["worktree", "add", "-q", "-b", branch, str(path), base], run)
+    return path / report.root.relative_to(repo), branch, base
 
 
-def _git(cwd: Path, args: list[str], run: Runner) -> str:
+def git(cwd: Path, args: list[str], run: Runner = subprocess.run) -> str:
     done = run(["git", *args], cwd=cwd, capture_output=True, text=True)
     if done.returncode != 0:
         hint = ""
@@ -188,7 +214,7 @@ def _check_may_write(project: Path, item: dict, registry: dict) -> None:
             f"{item['target']} exists and was not generated by harness; "
             "move it away or rename the service"
         )
-    if known["sha256"] != _hash(path.read_text()):
+    if known["sha256"] != file_hash(path.read_text()):
         raise GenerateError(
             f"{item['target']} was edited by hand after it was generated; keep your edits "
             "in the spec or the rules hook, then restore the file to generate again"
@@ -236,7 +262,7 @@ def _write(project, item, environment, header, registry, run_id, digest, result)
     path.write_text(text)
     result.written.append(item["target"])
     if item["owner"] != "you":
-        registry[item["target"]] = {"run": run_id, "spec": digest, "sha256": _hash(text)}
+        registry[item["target"]] = {"run": run_id, "spec": digest, "sha256": file_hash(text)}
 
 
 def _register(path: Path, lines: list[str], pack: Pack) -> None:
@@ -267,7 +293,7 @@ def _register(path: Path, lines: list[str], pack: Pack) -> None:
 # ── Running the tests ───────────────────────────────────────────────
 
 
-def _run_tests(project: Path, pack: Pack, test_file: str, run: Runner) -> TestRun:
+def run_tests(project: Path, pack: Pack, test_file: str, run: Runner = subprocess.run) -> TestRun:
     command = pack.manifest.commands.get("test")
     if not command or not test_file:
         return TestRun()
@@ -294,11 +320,11 @@ def _run_tests(project: Path, pack: Pack, test_file: str, run: Runner) -> TestRu
 # ── Records ─────────────────────────────────────────────────────────
 
 
-def _hash(text: str) -> str:
+def file_hash(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _load_registry(path: Path) -> dict:
+def load_registry(path: Path) -> dict:
     if not path.is_file():
         return {}
     return (yaml.safe_load(path.read_text()) or {}).get("files", {})

@@ -44,8 +44,11 @@ class PackManifest(Model):
     imports: dict[str, Text]  # the app's own pieces, as module:name
     registration: Registration
     markers: dict[str, Text]  # start / end
-    commands: dict[str, list[Text]] = Field(default_factory=dict)  # test, lint
+    commands: dict[str, list[Text]] = Field(default_factory=dict)  # test, lint, python
     fixtures: dict[str, Text] = Field(default_factory=dict)  # client, session
+    # How to build the app, to read its own OpenAPI: module:function and its arguments.
+    app_factory: Text | None = None
+    app_factory_args: list[object] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)

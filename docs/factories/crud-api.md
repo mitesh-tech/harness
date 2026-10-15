@@ -313,6 +313,21 @@ harness generate <run>               tests (must fail) → code (must pass), in 
 - **Every generated file** starts with a header naming its run and spec hash, and is recorded in `.harness/generated.yaml`; regenerating overwrites a file only if its hash still matches.
 - **Files per service** (route, schemas, repository), so new services add files instead of merging into generated ones; the model is per entity.
 
+## Verifying and reporting
+
+After the tests pass, the result is checked against the spec; the branch is committed only when every check passes.
+
+| Check | Layer | Fails when |
+|---|---|---|
+| spec tests | platform | a test from the spec fails after the code |
+| project tests | platform (pack: test command) | something that worked before breaks |
+| lint | platform (pack: lint command) | lint errors; *skipped* when the project has no linter |
+| contract | **this factory** (`design.py › verify`) | the app's own OpenAPI differs from the spec's: path, method, statuses, request fields and which are required, response fields |
+| scope | platform | a file outside the plan changed (worktree: `git diff`; in place: only the generated list) |
+| untouched | platform | a generated file no longer has its recorded hash |
+
+A test that passed before the code existed is reported as a warning. The report (`report.md` in the run folder) holds the task, the spec, this factory's design line (`design.py › summary`), each check, the files, the decisions, where the code is, and the next steps, including the `domain.yaml` entry that records a new service.
+
 ### Decisions (S5)
 
 | # | Decision |
@@ -328,6 +343,15 @@ harness generate <run>               tests (must fail) → code (must pass), in 
 | K14 | No LLM: business rules go in the hook |
 | K15 | The spec's `tests` are structured cases (`given`, `request`, `expect` with status, headers, body, problem title) with example values by rule |
 | K16, K17 | Tests are generated first, from the confirmed spec only, and must fail before the code and pass after |
+| L1–L2 | Verify: spec tests, project tests, lint, contract (the app's OpenAPI against the spec's), scope, untouched |
+| L3 | Routes declare their error responses (problem+json) so the app's OpenAPI states them |
+| L4 | The pack says how to build the app (`app_factory`) and run code in the project's environment (`python`); a missing lint tool is *skipped* |
+| L5 | Commit only after every check passes; a failed verify leaves the worktree uncommitted |
+| L6, L11 | `report.md` with next steps; `verify` events in the trace |
+| L7 | `harness run` asks approve / edit / reject; `--approve` only when nothing is open |
+| L8 | `harness verify <run>` checks again |
+| L9, L10 | A test passing before the code is a warning; in place, scope covers only the generated list |
+| L12 | Factories add checks and report lines through optional `verify()` and `summary()` in their design code |
 
 ## Outcomes
 

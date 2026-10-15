@@ -12,8 +12,18 @@ from {{ schemas_module }}.{{ service }} import {{ entity }}, {{ request_class }}
 
 router = APIRouter(tags=["{{ tag }}"])
 
+# The errors this endpoint answers with, so the app's OpenAPI states them.
+ERRORS = {
+{% for e in errors %}    {{ e.status }}: {
+        "description": "{{ e.description }}",
+        "content": {"application/problem+json": {}},
+    },
+{% endfor %}}
 
-@router.{{ method | lower }}("{{ path }}", status_code={{ status }}, response_model={{ entity }})
+
+@router.{{ method | lower }}(
+    "{{ path }}", status_code={{ status }}, response_model={{ entity }}, responses=ERRORS
+)
 def {{ service }}(
 {% for p in path_params %}    {{ p }}: int,
 {% endfor %}    body: {{ request_class }},
