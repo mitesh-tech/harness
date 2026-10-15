@@ -2,10 +2,10 @@
   "$defs": {
     "Branch": {
       "additionalProperties": false,
-      "description": "Choose the next step from a property of the answer, e.g. the chosen kind's target.",
+      "description": "Choose the next step by the answer given (a step with `choices`).",
       "properties": {
         "by": {
-          "const": "kind_target",
+          "const": "answer",
           "title": "By",
           "type": "string"
         },
@@ -183,6 +183,29 @@
       "title": "Condition",
       "type": "object"
     },
+    "FlowChoice": {
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "examples": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Examples",
+          "type": "array"
+        }
+      },
+      "required": [
+        "description"
+      ],
+      "title": "FlowChoice",
+      "type": "object"
+    },
     "FlowStep": {
       "additionalProperties": false,
       "properties": {
@@ -191,16 +214,78 @@
           "title": "Question",
           "type": "string"
         },
-        "options": {
-          "enum": [
-            "areas",
-            "services_in_area",
-            "kinds",
-            "entities_in_area",
-            "aggregations_in_area"
+        "none": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Options",
-          "type": "string"
+          "default": null,
+          "title": "None"
+        },
+        "question_from": {
+          "anyOf": [
+            {
+              "const": "operation",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Question From"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "enum": [
+                "targets",
+                "target_parent",
+                "operations",
+                "offered_kinds",
+                "services_for_target_kind"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "maxProperties": 15,
+              "patternProperties": {
+                "^[a-z][a-z0-9_]*$": {
+                  "$ref": "#/$defs/FlowChoice"
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Choices"
+        },
+        "skip_if_single": {
+          "default": false,
+          "title": "Skip If Single",
+          "type": "boolean"
+        },
+        "accept_named": {
+          "default": false,
+          "title": "Accept Named",
+          "type": "boolean"
         },
         "on_answer": {
           "anyOf": [
@@ -218,11 +303,23 @@
           "pattern": "^[a-z][a-z0-9_]*$",
           "title": "On None",
           "type": "string"
+        },
+        "on_empty": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "On Empty"
         }
       },
       "required": [
         "question",
-        "options",
         "on_answer",
         "on_none"
       ],

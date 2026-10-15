@@ -16,10 +16,12 @@ class Option:
     description: str
     examples: tuple[str, ...] = ()
     not_: str | None = None
+    reason: str | None = None  # why this option is offered; recorded, never sent to the model
 
     def text(self) -> str:
         """Everything the model reads about this option, in one string."""
-        parts = [self.description]
+        description = self.description.rstrip()
+        parts = [description if description.endswith((".", "!", "?")) else description + "."]
         if self.examples:
             parts.append("Examples: " + "; ".join(self.examples) + ".")
         if self.not_:

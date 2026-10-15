@@ -168,7 +168,7 @@ def test_option_names_cover_every_source():
 
 def test_bookstore_evals_load():
     report = validate_project(BOOKSTORE)
-    assert len(report.evals.cases) == 8
+    assert len(report.evals.cases) == 23
 
 
 def eval_errors(project: Path) -> list[str]:
@@ -177,21 +177,21 @@ def eval_errors(project: Path) -> list[str]:
 
 def test_unknown_outcome_step_and_answer(project):
     path = project / ".harness/evals/classify.yaml"
-    edit(path, "outcome: [unsure, no_entity]", "outcome: [unsure, lost]")
-    edit(path, "not_asked: [kind]\n", "not_asked: [knd]\n")
+    edit(path, "outcome: [no_entity, unsure, unsupported]", "outcome: [no_entity, lost]")
+    edit(path, "path: [factory]", "path: [knd]")
     edit(path, "service: list_books }", "service: list_bookz }")
     assert eval_errors(project) == [
         "'list_bookz' is not a possible answer for step 'service'",
-        "unknown outcome 'lost' (outcomes: matched, new_service, no_entity, unsure)",
-        "unknown step 'knd' (steps: area, association, entity, kind, service)",
+        "unknown step 'knd' (steps: factory, kind, name, operation, parent, service, target)",
+        "unknown outcome 'lost' (outcomes: matched, new_service, no_entity, unsupported, unsure)",
     ]
 
 
 def test_step_both_in_path_and_not_asked(project):
     edit(
         project / ".harness/evals/classify.yaml",
-        "not_asked: [kind, entity]",
-        "not_asked: [service]",
+        "semif_calls: 4  # parent and kind are decided by rule",
+        "semif_calls: 4\n      not_asked: [service]",
     )
     assert eval_errors(project) == ["step(s) service are both in path and in not_asked"]
 
@@ -199,8 +199,8 @@ def test_step_both_in_path_and_not_asked(project):
 def test_group_of_one_is_a_warning(project):
     edit(
         project / ".harness/evals/classify.yaml",
-        '- task: "Add a new book"\n',
-        '- task: "Add a new book"\n    group: add-book\n',
+        '- task: "Show all books by an author through an endpoint"\n',
+        '- task: "Show all books by an author through an endpoint"\n    group: lonely\n',
     )
     report = validate_project(project)
     assert report.ok
@@ -210,8 +210,8 @@ def test_group_of_one_is_a_warning(project):
 def test_eval_line_numbers(project):
     edit(
         project / ".harness/evals/classify.yaml",
-        "outcome: [unsure, no_entity]",
-        "outcome: [unsure, lost]",
+        "outcome: [no_entity, unsure, unsupported]",
+        "outcome: [no_entity, lost]",
     )
     [problem] = [p for p in validate_project(project).errors]
     lines = (project / ".harness/evals/classify.yaml").read_text().splitlines()

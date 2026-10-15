@@ -8,11 +8,11 @@ See [the architecture](../architecture.md) for how factories fit into the harnes
 
 | In scope | Not yet |
 |---|---|
-| Create, read one, list (query), update (some fields), replace (all fields), transition (archive, approve), delete | Reading or updating a connection itself |
+| Create, read one, list (query), change (some fields), replace (all fields), transition (archive, approve), delete | Reading or updating a connection itself |
 | Entities and connections (aggregations) from the domain knowledge base: link and unlink | |
 | Composition: a child created, listed and deleted within its parent (`/books/{id}/reviews`) | Entities that don't exist yet (phase 2: domain-model factory) |
 | Relational data sources | Other data sources (REST APIs, documents) |
-| New APIs and small changes to existing ones (add or remove an attribute) | Larger refactors |
+| APIs for entities and connections that already exist in the domain | Changing the domain itself: new entities, attributes or relationships (the **domain-model factory**) |
 
 A task outside this scope ends as `UNSUPPORTED`, with a reason.
 
@@ -25,11 +25,11 @@ Every API this factory produces has six parts, each with fixed rules:
 | Part | Comes from | Rules |
 |---|---|---|
 | **Resource** | An entity in the domain knowledge base | One resource per entity; its fields are the entity's attributes |
-| **Method** | The operation | create → `POST` · read one / list → `GET` · update → `PATCH` · replace → `PUT` · delete → `DELETE` |
+| **Method** | The operation | create → `POST` · read one / list → `GET` · change → `PATCH` · replace → `PUT` · delete → `DELETE` |
 | **Request** | Derived | The body is the resource for `POST` and `PUT`, excluding generated fields such as `id` · `PATCH` sends only the changed attributes · `GET` and `DELETE` have no body · the **path parameter** is the resource's identifier (`/books/{id}`) · **query parameters** can only be fields of the response (filters) |
 | **Business logic** | Rules + extension points | Validation from attribute rules (required, unique, min/max); domain rules as extension points written by a person or an agent |
 | **Data** | `data.yaml` | Every resource field maps to a data source; the API talks to a repository interface, never to the source directly |
-| **Response** | Derived | The resource, or a list of resources plus paging information · statuses per method: 201 create, 200 read/update/replace, 204 delete, 404 unknown identifier, 409 conflict, 422 invalid input |
+| **Response** | Derived | The resource, or a list of resources plus paging information · statuses per method: 201 create, 200 read/change/replace, 204 delete, 404 unknown identifier, 409 conflict, 422 invalid input |
 
 These rules live in the factory's knowledge as Prolog rules. A check rejects any design that breaks them, for example a query parameter that isn't a response field.
 
@@ -50,16 +50,16 @@ SemIf first answers the broad **operation**. The kind follows from the operation
 |---|---|---|---|---|
 | create | create, link | create | link | — |
 | read | read_one, query | read_one, query | — | "One specific item, or a list of items?" |
-| update | update, replace, transition | update, replace, transition (only with a lifecycle) | — | "A few details, all the details, or another stage of its life?" |
+| update | change, replace, transition | change, replace, transition (only with a lifecycle) | — | "A few details, all the details, or another stage of its life?" |
 | delete | delete, unlink | delete | unlink | — |
 
-The kinds under update differ in method and logic: update is `PATCH` with only the changed attributes, replace is `PUT` with the whole resource, transition is `PATCH` on the lifecycle field, guarded by the allowed moves (409 otherwise).
+The kinds under update differ in method and logic: change is `PATCH` with only the changed attributes, replace is `PUT` with the whole resource, transition is `PATCH` on the lifecycle field, guarded by the allowed moves (409 otherwise).
 
 This is a Prolog rule, `offered_kind(Operation, Target, Kind, Reason)` in `core.pl`:
 
 ```
 $ harness kb query "offered_kind(update, book, K, Why)"
-K = update      Why = target_type
+K = change      Why = target_type
 K = replace     Why = target_type
 K = transition  Why = has_lifecycle
 ```
@@ -82,14 +82,12 @@ Dependents and the delete policy (`on_delete`) are derived in Prolog when the de
 
 | Step | Who | Outcome when it can't continue |
 |---|---|---|
-| **Factory router** | SemIf picks the factory from installed factories' descriptions | `UNSUPPORTED`: no factory handles this task |
-| **Which entity or connection?** | SemIf, options from the domain knowledge base | `NO_ENTITY`: you add the entity (phase 2: the domain-model factory helps) |
-| **New API or change?** | SemIf | — |
-| **A. Which operation?** → kind | SemIf for the operation; the kind by rule, or SemIf when several remain | `UNSUPPORTED`: no kind fits this target · `UNSURE`: you choose |
+| **Factory router** | SemIf picks the factory from installed factories' descriptions, including planned ones (`available: false`, like `domain-model`) | `UNSUPPORTED`: no factory fits, or the one that fits is only planned |
+| **Which entity or connection?** | SemIf, options from the domain knowledge base | `NO_ENTITY`: the domain must change first (the domain-model factory) |
+| **Part of a parent?** | Rule: the composition parent, if any | — |
+| **Which operation?** → kind | SemIf for the operation; the kind by rule, or SemIf when several remain | `UNSUPPORTED`: no kind fits this target · `UNSURE`: you choose |
 | **Find service** | A lookup of existing services for this target and kind; SemIf confirms among them, always with "none" | No match → a **new service**, named by rule (`add_{entity}`, `list_{entities}`, …) |
 | **Data mapping exists?** | Check `data.yaml` | `NO_MAPPING`: you add the mapping |
-| **B. Change API** | SemIf: add or remove an attribute (for remove, which one) | `CHANGE_API`; for add, the attribute's name and type come from you |
-| **Impact analysis** (B) | Prolog: every API that exposes the resource, and which parts include the attribute | — |
 | **Resolve** | Prolog applies the API rules and the data mapping; SemIf answers only yes/no questions the knowledge base leaves open (for example "is login required?") | Logic problems block the design |
 | **Generate spec** | The harness writes `spec.yaml` and `openapi.yaml` in the run folder | Open questions are listed in the spec |
 | **Confirm spec** | You approve, edit or reject it. Edits are checked again | Reject → nothing is written |
@@ -98,30 +96,28 @@ Dependents and the delete policy (`on_delete`) are derived in Prolog when the de
 | **Report** | The spec, the proof of every decision, files, test results, gaps | — |
 | **Learn** | New services and attributes go to the knowledge base through a pull request you approve; the confirmed classification becomes an eval case | — |
 
-## Two kinds of task
+## A task
 
-### A. New operation
+The entity (or connection) exists in the domain. The task asks for an API to create, read, update or delete it.
 
-The entity and its data mapping exist, but there is no API for this operation yet.
+> "Let staff add a new publisher through a new endpoint" → entity `Publisher`, operation create, no existing service → new service `add_publisher` → `POST /publishers`.
 
-> "Let staff add a new publisher" → entity `Publisher`, operation create, no existing service → new service `add_publisher` → `POST /publishers`.
+Write tasks in business language and name the endpoint ("…through an endpoint", "…through a new endpoint").
 
-### B. Change an existing operation
+## Changes to the domain: the domain-model factory
 
-The API exists and needs a small change: add or remove an attribute.
-
-> "Add an isbn field to books" → entity `Book`, change: add attribute `isbn` (type confirmed by you).
-
-The change touches several places together, all found by impact analysis:
+Adding or removing an attribute, a new entity or a relationship changes **the domain itself**, so it is not CRUD. The **domain-model factory** owns these tasks: it drafts the domain change for your approval, then the CRUD factory updates the affected APIs, found by impact analysis:
 
 | Place | Change |
 |---|---|
-| Domain knowledge base | Add or remove the attribute |
+| Domain knowledge base | Add or remove the attribute (domain-model factory) |
 | Data mapping | Map it (and change the database schema), or remove it |
 | Request bodies | Every `POST` / `PUT` / `PATCH` for the resource |
 | Responses | Every API returning the resource |
 | Filters | Query parameters that used the attribute |
 | Validation and tests | For each affected API |
+
+Until that factory exists, such tasks end as `UNSUPPORTED` or `UNSURE`. The CRUD factory must never turn them into CRUD on existing entities ("stop storing comments" is not "remove a review").
 
 ## Data layer
 
@@ -231,10 +227,9 @@ The API contract is also written as `openapi.yaml`. Generation can be re-run fro
 | `MATCHED` | An existing service fits | Resolve and continue |
 | `NEW_SERVICE` | The entity and operation are known, no service exists yet | Name it, resolve, continue |
 | `UNSURE` | SemIf is below the confidence threshold | You choose |
-| `NO_ENTITY` | No entity in the knowledge base fits | You add it (phase 2: guided) |
-| `CHANGE_API` | An existing API changes: add or remove an attribute | Impact analysis, then the same spec flow |
+| `NO_ENTITY` | No entity in the knowledge base fits | The domain changes first (domain-model factory) |
 | `NO_MAPPING` | The entity has no data mapping | You add it to `data.yaml` |
-| `UNSUPPORTED` | No factory, or no kind, handles this task | Out of scope for now |
+| `UNSUPPORTED` | No factory, or no kind of CRUD API, handles this task | Out of scope for now |
 
 ## Factory layout
 
@@ -251,8 +246,8 @@ src/harness/factories/crud-api/
 ```yaml
 # factory.yaml
 name: crud-api
-description: "Create, read, update and delete records of an entity through a REST API"
-examples: ["Add a new book", "List books by author", "Change a book's price", "Remove a review"]
+description: "Create, read, update and delete the domain entities of a business through a REST API, changing their state"
+examples: ["Add a new customer", "List orders placed this week", "Change a product's price", "Remove a cancelled order"]
 technical: technical.yaml
 checks: checks.pl
 packs: [python-fastapi]
@@ -262,6 +257,6 @@ packs: [python-fastapi]
 
 | Item | Where it fits |
 |---|---|
-| LLM-guided design of new entities, considering the existing domain model | A **domain-model factory** whose output is domain knowledge |
+| LLM-guided design of larger domain changes, considering the existing domain model | The **domain-model factory**, extended |
 | REST APIs and document stores as data sources | New source-type plugins |
 | Agent-driven runs from Claude Code, Codex, Copilot | Platform, using the same spec |

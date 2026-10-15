@@ -51,7 +51,8 @@ class Report:
     checked: list[Checked] = field(default_factory=list)
     problems: list[Problem] = field(default_factory=list)
     settings: HarnessFile | None = None
-    factories: dict[str, LoadedFactory] = field(default_factory=dict)
+    factories: dict[str, LoadedFactory] = field(default_factory=dict)  # available ones
+    planned: dict[str, FactoryManifest] = field(default_factory=dict)  # offered, not built yet
     domain: Domain | None = None
     # Until the factory router exists, commands use the first enabled factory's knowledge.
     technical: Technical | None = None
@@ -131,8 +132,14 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
 
     for factory in _enabled_factories(report, project_file, names):
         loaded = _load_factory(report, factory, knowledge_dir)
-        if loaded is not None:
+        if isinstance(loaded, LoadedFactory):
             report.factories[factory.name] = loaded
+        elif loaded is not None:
+            report.planned[factory.name] = loaded
+    if not report.factories and names and report.ok:
+        report.problems.append(
+            Problem(project_file, ("factories",), "no available factory is enabled", None)
+        )
 
     domain = _load(report, Domain, knowledge_dir / "domain.yaml")
     if domain is not None:
@@ -167,7 +174,9 @@ def _load_evals(report: Report, path: Path, domain: Domain, technical: Technical
     groups = {case.group for case in evals.cases if case.group}
     report.checked[-1].summary = f"{len(evals.cases)} cases, {len(groups)} paraphrase groups"
     report.evals = evals
-    _attach(report, references.check_evals(evals, domain, technical), {(): _yaml_file(path)})
+    factories = set(report.factories) | set(report.planned)
+    findings = references.check_evals(evals, domain, technical, factories)
+    _attach(report, findings, {(): _yaml_file(path)})
 
 
 def _enabled_factories(report: Report, project_file: Path, names: list[str]) -> list[Factory]:
@@ -198,11 +207,13 @@ def _enabled_factories(report: Report, project_file: Path, names: list[str]) -> 
     return enabled
 
 
-def _load_factory(report: Report, factory: Factory, knowledge_dir: Path) -> LoadedFactory | None:
+def _load_factory(
+    report: Report, factory: Factory, knowledge_dir: Path
+) -> LoadedFactory | FactoryManifest | None:
+    """An available factory with its knowledge, a planned factory's manifest, or None."""
     manifest = _load(report, FactoryManifest, factory.manifest_path)
     if manifest is None:
         return None
-    report.checked[-1].summary = f"packs: {', '.join(manifest.packs)}"
     manifest_file = _yaml_file(factory.manifest_path)
     if manifest.name != factory.name:
         report.problems.append(
@@ -210,6 +221,10 @@ def _load_factory(report: Report, factory: Factory, knowledge_dir: Path) -> Load
                 ("name",), f"name '{manifest.name}' must match the folder name '{factory.name}'"
             )
         )
+    if not manifest.available:
+        report.checked[-1].summary = "planned: offered to the router, not built yet"
+        return manifest
+    report.checked[-1].summary = f"packs: {', '.join(manifest.packs)}"
     for field_name in ("technical", "checks"):
         if not (factory.root / getattr(manifest, field_name)).is_file():
             report.problems.append(

@@ -72,9 +72,18 @@ class FactoryManifest(Model):
     name: KebabName
     description: Text
     examples: list[Text] = Field(min_length=1)
+    # false: planned, not built yet. The router still offers it, so a task
+    # that needs it ends as unsupported with a clear reason.
+    available: StrictBool = True
     technical: Text = "technical.yaml"
     checks: Text = "checks.pl"
-    packs: list[KebabName] = Field(min_length=1)
+    packs: list[KebabName] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_packs(self) -> "FactoryManifest":
+        if self.available and not self.packs:
+            raise ValueError("an available factory names at least one stack pack in 'packs'")
+        return self
 
 
 # ── domain.yaml ─────────────────────────────────────────────────────
@@ -184,6 +193,8 @@ class Service(Model):
 
 
 class Domain(Model):
+    # What the business is, in one line; questions to SemIf use it as {system}.
+    description: Text | None = None
     areas: dict[SnakeName, Area] = Field(min_length=1, max_length=MAX_OPTIONS)
     entities: dict[EntityName, Entity] = Field(min_length=1)
     associations: dict[SnakeName, Association] = Field(default_factory=dict)
@@ -299,23 +310,55 @@ class Rule(Model):
 
 
 OptionSource = Literal[
-    "areas", "services_in_area", "kinds", "entities_in_area", "aggregations_in_area"
+    "targets",
+    "target_parent",
+    "operations",
+    "offered_kinds",
+    "services_for_target_kind",
 ]
-KIND_TARGETS = ("entity", "association")
+# Steps the platform adds around a factory's flow: choosing the factory,
+# and naming a new service.
+PLATFORM_STEPS = ("factory", "name")
+# Placeholders texts sent to SemIf may use, besides the answers of earlier steps.
+PLACEHOLDERS = ("system", "entities", "targets", "target_context")
+UNSUPPORTED = "unsupported"
 
 
 class Branch(Model):
-    """Choose the next step from a property of the answer, e.g. the chosen kind's target."""
+    """Choose the next step by the answer given (a step with `choices`)."""
 
-    by: Literal["kind_target"]
+    by: Literal["answer"]
     cases: dict[SnakeName, SnakeName] = Field(min_length=1)
 
 
+class FlowChoice(Model):
+    description: Text
+    examples: list[Text] = Field(default_factory=list)
+
+
 class FlowStep(Model):
+    # Questions and the "none" text may use {system} (domain.yaml › description),
+    # {entities} (the entity names) and the answer of an earlier step, e.g. {target}.
     question: Text
-    options: OptionSource
+    none: Text | None = None  # what "none" means at this step; a general text when omitted
+    question_from: Literal["operation"] | None = None  # ask the chosen operation's question
+    options: OptionSource | None = None  # options from the knowledge base…
+    choices: dict[SnakeName, FlowChoice] | None = Field(default=None, max_length=MAX_OPTIONS)
+    skip_if_single: StrictBool = False  # one option: take it by rule, without asking
+    # Accept SemIf's top answer below the threshold when the task names exactly
+    # one entity and it is that answer: two independent signals agree.
+    accept_named: StrictBool = False
     on_answer: SnakeName | Branch
     on_none: SnakeName
+    on_empty: SnakeName | None = None  # no options at all; defaults to on_none
+
+    @model_validator(mode="after")
+    def _check_options(self) -> "FlowStep":
+        if (self.options is None) == (self.choices is None):
+            raise ValueError("a step has either 'options' or 'choices'")
+        if isinstance(self.on_answer, Branch) and self.choices is None:
+            raise ValueError("'by: answer' needs fixed 'choices' to branch on")
+        return self
 
 
 class ClassificationFlow(Model):

@@ -2,6 +2,9 @@
 #
 # Classification eval cases for the Bookstore.
 #
+# Tasks name the endpoint: "through an endpoint" (or "a new endpoint").
+# Domain changes and out-of-scope tasks are written as people would ask them.
+#
 # `expect` says what should happen and, optionally, how:
 #   outcome      the outcome, or a list of acceptable outcomes
 #   answers      the answer expected at each step
@@ -14,48 +17,135 @@
 # knowledge-base descriptions) rather than quietly changing the expectation.
 
 cases:
-  - task: "Add a new book"
+  # ── A. New APIs: an existing service matches ──────────────────────
+  - task: "Add a new book through an endpoint"
+    group: add-book
     expect:
       outcome: matched
-      answers: { area: catalogue, service: add_book }
-      path: [area, service]
-      not_asked: [kind, entity]
+      answers: { factory: crud-api, target: Book, operation: create, kind: create, service: add_book }
+      path: [factory, target, parent, operation, kind, service]
+      semif_calls: 4  # parent and kind are decided by rule
 
-  - task: "Show all books by an author"
+  - task: "We need an endpoint to enter new books into the catalogue"
+    group: add-book
     expect:
       outcome: matched
-      answers: { area: catalogue, service: list_books }
-      path: [area, service]
+      answers: { target: Book, operation: create, service: add_book }
 
+  - task: "Show all books by an author through an endpoint"
+    expect:
+      outcome: matched
+      answers: { target: Book, operation: read, kind: query, service: list_books }
+
+  - task: "Show one book's details through an endpoint"
+    expect:
+      outcome: matched
+      answers: { target: Book, operation: read, kind: read_one, service: get_book }
+
+  - task: "Change a book's price through an endpoint"
+    expect:
+      outcome: matched
+      answers: { target: Book, operation: update, kind: change, service: change_book_price }
+
+  - task: "Overwrite all of a book's details through an endpoint"
+    expect:
+      outcome: [matched, unsure]
+      answers: { target: Book }
+      note: "Right answer, but below the threshold: a person decides for now. Thresholds are calibrated in S8 (operation update 0.78)."
+
+  - task: "Archive a book through an endpoint"
+    expect:
+      outcome: matched
+      answers: { target: Book, operation: update, kind: transition, service: archive_book }
+
+  # A paraphrase of "Archive a book"; not grouped while it is unsure.
+  - task: "Stop selling a book but keep its record, through an endpoint"
+    expect:
+      outcome: [matched, unsure]
+      note: "Right answer, but below the threshold: a person decides for now. Thresholds are calibrated in S8 (factory: crud-api and domain-model compete, 0.51)."
+
+  - task: "Readers should be able to rate a book from 1 to 5 through a new endpoint"
+    expect:
+      outcome: matched
+      answers: { target: Review, parent: Book, operation: create, service: add_review }
+
+  # The same task without the endpoint phrase; not grouped while it is unsure.
   - task: "Readers should be able to rate a book from 1 to 5"
     expect:
-      outcome: matched
-      answers: { area: community, service: add_review }
-      path: [area, service]
+      outcome: [matched, unsure]
+      note: "Right answer, but below the threshold: a person decides for now. Thresholds are calibrated in S8 (target Review 0.77)."
 
-  - task: "Put Dune into the Summer reads collection"
+  - task: "Remove an offensive review through an endpoint"
     expect:
       outcome: matched
-      answers: { area: curation, service: add_book_to_collection }
-      path: [area, service]
+      answers: { target: Review, parent: Book, operation: delete, kind: delete, service: remove_review }
 
-  - task: "Let staff add a new publisher"
+  # ── Connections ───────────────────────────────────────────────────
+  - task: "Put Dune into the Summer reads collection through an endpoint"
+    expect:
+      outcome: matched
+      answers: { target: collection_books, operation: create, kind: link, service: add_book_to_collection }
+
+  - task: "Take Dune out of the Summer reads collection through an endpoint"
+    expect:
+      outcome: [matched, unsure]
+      note: "Right answer, but below the threshold: a person decides for now. Thresholds are calibrated in S8 (target collection_books 0.62; Book 0.22)."
+
+  - task: "Set the publisher of a book through an endpoint"
+    expect:
+      outcome: matched
+      answers: { target: book_publisher, operation: create, kind: link, service: set_book_publisher }
+
+  - task: "Show the books in a collection through an endpoint"
+    expect:
+      outcome: [unsupported, unsure]
+      note: "Reading a connection is not supported yet."
+
+  # ── A. New APIs: no service yet ───────────────────────────────────
+  - task: "Let staff add a new publisher through a new endpoint"
     expect:
       outcome: new_service
-      answers: { area: catalogue, kind: create, entity: Publisher }
-      path: [area, service, kind, entity]
-      semif_calls: 4
+      answers: { target: Publisher, operation: create, kind: create, name: add_publisher }
+      path: [factory, target, parent, operation, kind, service, name]
+      semif_calls: 3  # no service to confirm, so none is asked
 
-  - task: "Let staff mark a book as featured on the homepage"
+  - task: "Delete a book through a new endpoint"
     expect:
-      outcome: unsure
-      note: "Ambiguous: featured could be a field on Book or a curated list, so a person decides."
+      outcome: new_service
+      answers: { target: Book, operation: delete, kind: delete, name: remove_book }
 
-  - task: "Let customers save books to a personal wishlist"
+  # ── Changes to the domain: the domain-model factory's job ─────────
+  # The router sends them to the planned domain-model factory, so the CRUD
+  # factory never turns them into CRUD on existing entities ("stop storing
+  # comments" is not "remove a review").
+  - task: "Add an isbn field to reviews"
     expect:
-      outcome: [new_service, no_entity, unsure]
+      outcome: unsupported
+      answers: { factory: domain-model }
+      path: [factory]
 
-  - task: "Manage shipping addresses for orders"
+  - task: "Stop storing comments on reviews"
     expect:
-      outcome: [unsure, no_entity]
-      not_asked: [kind]
+      outcome: unsupported
+      answers: { factory: domain-model }
+      path: [factory]
+
+  # ── A person decides, or out of scope ─────────────────────────────
+  - task: "Let staff mark a book as featured on the homepage through an endpoint"
+    expect:
+      outcome: [unsure, unsupported]
+      note: "Ambiguous: featured could be a new Book field (a domain change) or a curated list."
+
+  - task: "Let customers save books to a personal wishlist through a new endpoint"
+    expect:
+      outcome: [unsupported, new_service, no_entity, unsure]
+      note: "A wishlist is a new entity, so the domain-model factory fits best."
+
+  - task: "Manage shipping addresses for orders through a new endpoint"
+    expect:
+      outcome: [no_entity, unsure, unsupported]
+
+  - task: "Send a weekly newsletter to customers"
+    expect:
+      outcome: unsupported
+      path: [factory]

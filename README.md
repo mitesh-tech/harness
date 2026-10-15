@@ -125,21 +125,34 @@ semif:
 
 ## Classifying a task
 
+Write the task in business language and name the endpoint: "…through a new endpoint" (or "through an endpoint"). A task without it still works, but SemIf is less sure which kind of work it is. The CRUD factory builds APIs for entities that exist; changing the domain itself (a new entity or attribute) is a separate factory, planned for S7.
+
 ```bash
-uv run harness classify "Let staff add a new publisher" --project examples/bookstore
+uv run harness classify "Let staff add a new publisher through a new endpoint" --project examples/bookstore
 ```
 
 ```
-  step         by     answer                    conf  margin
-  area         semif  catalogue                 1.00    1.00  ✓
-  service      semif  none                      0.88    0.81  ✓
-  kind         semif  create                    1.00    1.00  ✓
-  entity       semif  Publisher                 0.99    0.99  ✓
+  step         by     answer                      conf  margin
+  factory      semif  crud-api                    0.93    0.90  ✓
+  target       semif  Publisher                   0.86    0.81  ✓
+  parent       rule   none                       Publisher is not part of another thing
+  operation    semif  create                      1.00    1.00  ✓
+  kind         rule   create                     the only kind of create that works on Publisher
+  service      rule   none                       no service acts on Publisher with kind create
+  name         rule   add_publisher              kind create names new services add_{entity}
 
-Outcome   NEW_SERVICE: catalogue › create › Publisher   (4 SemIf calls, 4.2s)
+Outcome   NEW_SERVICE: Publisher › create › create › add_publisher   (3 SemIf calls, 1.1s)
 ```
 
-SemIf answers one question at a time, choosing only among options from the knowledge base. The order of questions is configuration (`classification:` in [technical.yaml](src/harness/factories/crud-api/technical.yaml)): area, then service; when no service fits, the kind of operation and the entity (or, for link/unlink, the association). Answers below the threshold stop with `UNSURE` so a person decides. `margin` is how far the answer is ahead of the next option; a small margin is an early sign of doubt. Exit codes: `0` matched or new service, `2` needs a person, `1` error.
+The router (SemIf) first picks the factory. Installed factories include planned ones (`domain-model`, for changes to the domain itself), so a task that needs one ends as `UNSUPPORTED` with that reason instead of being mistaken for CRUD. In `crud-api`, the questions follow `classification:` in [technical.yaml](src/harness/factories/crud-api/technical.yaml):
+
+1. **target**: which domain entity, or relationship between two, the task is about (`none` → `NO_ENTITY`);
+2. **parent**: by rule, the composition parent (Review is part of a Book);
+3. **operation**: create, read, update or delete;
+4. **kind**: by rule when only one kind fits the target (Prolog `offered_kind`), otherwise SemIf;
+5. **service**: SemIf confirms among existing services for that target and kind, or a new service is named by rule.
+
+Questions are in domain language: they start with `domain.yaml`'s `description` and, once the target is known, what the domain says about it (its description, parent, details and stages). Answers below the threshold stop with `UNSURE`, except where a second signal agrees (the task names exactly that entity). `margin` is how far the answer is ahead of the next option. Every rule decision shows its reason. Exit codes: `0` matched or new service, `2` needs a person or unsupported, `1` error.
 
 | Option | Shows |
 |---|---|
@@ -157,11 +170,11 @@ uv run harness eval classify --project examples/bookstore
 ```
 
 ```
-  ✓ Add a new book
-  ✗ Readers should be able to rate a book from 1 to 5
-      first wrong step: area: expected community, got catalogue (0.62, margin 0.31)
+  ✓ Add a new book through an endpoint
+  ✗ Take Dune out of the Summer reads collection through an endpoint
+      first wrong step: target: expected collection_books, got collection_books (0.62, margin 0.46, below the threshold)
       ...
-7/8 cases passed   (17 SemIf calls, 21.4s)
+22/23 cases passed   (68 SemIf calls, 18.3s)
 ```
 
 Tests run the same cases against real SemIf answers recorded in `tests/recordings/`, so they run without the server. Re-record after changing the knowledge base or the questions: `uv run pytest --record-semif` (with SemIf running).

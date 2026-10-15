@@ -3,17 +3,26 @@
 Each check yields (path, message, severity). The caller attaches the file and line.
 """
 
+import re
 from collections import Counter
 from collections.abc import Iterator
 
-from harness.knowledge.schema import KIND_TARGETS, MAX_OPTIONS, ClassifyEvals, Domain, Technical
+from harness.knowledge.schema import (
+    MAX_OPTIONS,
+    PLACEHOLDERS,
+    PLATFORM_STEPS,
+    UNSUPPORTED,
+    ClassifyEvals,
+    Domain,
+    Technical,
+)
 
 Finding = tuple[tuple[str | int, ...], str, str]
 
 # Kinds that are easy to confuse; each should carry a "not" hint pointing at the other.
 CONFUSABLE_KINDS = [
-    ("update", "replace"),
-    ("update", "transition"),
+    ("change", "replace"),
+    ("change", "transition"),
     ("create", "link"),
     ("delete", "unlink"),
 ]
@@ -27,8 +36,14 @@ def check_domain(domain: Domain, technical: Technical) -> Iterator[Finding]:
     yield from _check_entities(domain)
     yield from _check_associations(domain)
     yield from _check_services(domain, technical)
-    yield from _check_area_sizes(domain)
     yield from _check_target_count(domain)
+    if domain.description is None and any("{system}" in t for _, t in _flow_texts(technical)):
+        yield (
+            (),
+            "questions to SemIf use {system}; add a one-line 'description' of the business "
+            "at the top of domain.yaml",
+            "warning",
+        )
 
 
 def _check_entities(domain: Domain) -> Iterator[Finding]:
@@ -185,35 +200,6 @@ def _check_association_service(domain: Domain, service, at) -> Iterator[Finding]
         )
 
 
-def _area_of(domain: Domain, service) -> str | None:
-    entity_name = service.acts_on
-    if entity_name is None and service.association in domain.associations:
-        entity_name = domain.associations[service.association].parent
-    entity = domain.entities.get(entity_name) if entity_name else None
-    return entity.area if entity else None
-
-
-def _check_area_sizes(domain: Domain) -> Iterator[Finding]:
-    """Each area's services, entities and aggregations become SemIf options; keep them few."""
-    aggregations = [a for a in domain.associations.values() if a.kind == "aggregation"]
-    counts = {
-        "services": Counter(_area_of(domain, s) for s in domain.services.values()),
-        "entities": Counter(e.area for e in domain.entities.values()),
-        "aggregations": Counter(
-            domain.entities[a.parent].area for a in aggregations if a.parent in domain.entities
-        ),
-    }
-    for what, per_area in counts.items():
-        for area, count in per_area.items():
-            if area in domain.areas and count > MAX_OPTIONS:
-                yield (
-                    ("areas", area),
-                    f"{count} {what} in this area (at most {MAX_OPTIONS}); split it so SemIf "
-                    "chooses among fewer options",
-                    "error",
-                )
-
-
 def _check_target_count(domain: Domain) -> Iterator[Finding]:
     """Entities and aggregations are what a task acts on; SemIf chooses among all of them."""
     aggregations = [n for n, a in domain.associations.items() if a.kind == "aggregation"]
@@ -280,6 +266,38 @@ def check_technical(technical: Technical) -> Iterator[Finding]:
 
     yield from _check_operations(technical)
     yield from _check_flow(technical.classification)
+    yield from _check_placeholders(technical)
+
+
+def _flow_texts(technical: Technical) -> Iterator[tuple[tuple, str]]:
+    """Every text of the flow that is sent to SemIf, with where it is."""
+    for name, step in technical.classification.steps.items():
+        at = ("classification", "steps", name)
+        yield at + ("question",), step.question
+        if step.none:
+            yield at + ("none",), step.none
+    for name, operation in technical.operations.items():
+        if operation.question:
+            yield ("operations", name, "question"), operation.question
+        yield ("operations", name, "description"), operation.description
+    for name, kind in technical.kinds.items():
+        yield ("kinds", name, "description"), kind.description
+        if kind.not_:
+            yield ("kinds", name, "not"), kind.not_
+
+
+def _check_placeholders(technical: Technical) -> Iterator[Finding]:
+    """The domain placeholders and the names of steps (their answers) are the only ones."""
+    allowed = set(PLACEHOLDERS) | set(technical.classification.steps) | set(PLATFORM_STEPS)
+    for at, text in _flow_texts(technical):
+        unknown = sorted(set(re.findall(r"{(\w+)}", text)) - allowed)
+        if unknown:
+            yield (
+                at,
+                f"unknown placeholder(s) {', '.join(unknown)}; use {_known(PLACEHOLDERS)} "
+                f"or a step name ({_known(technical.classification.steps)})",
+                "error",
+            )
 
 
 def _check_operations(technical: Technical) -> Iterator[Finding]:
@@ -332,6 +350,14 @@ def _check_flow(flow) -> Iterator[Finding]:
     clash = set(flow.steps) & set(flow.outcomes)
     for name in sorted(clash):
         yield (at + ("outcomes",), f"'{name}' is both a step and an outcome", "error")
+    for name in sorted(set(flow.steps) & set(PLATFORM_STEPS)):
+        yield (at + ("steps", name), f"'{name}' is a step the platform adds; rename it", "error")
+    if UNSUPPORTED not in flow.outcomes:
+        yield (
+            at + ("outcomes",),
+            f"'{UNSUPPORTED}' must be an outcome: the platform ends there when no factory fits",
+            "error",
+        )
     if flow.start not in flow.steps:
         yield (
             at + ("start",),
@@ -347,14 +373,23 @@ def _check_flow(flow) -> Iterator[Finding]:
     for name, step in flow.steps.items():
         where = at + ("steps", name)
         nexts = [("on_none", step.on_none)]
+        if step.on_empty is not None:
+            nexts.append(("on_empty", step.on_empty))
         if isinstance(step.on_answer, str):
             nexts.append(("on_answer", step.on_answer))
         else:
-            missing = set(KIND_TARGETS) - set(step.on_answer.cases)
+            missing = set(step.choices or {}) - set(step.on_answer.cases)
             if missing:
                 yield (
                     where + ("on_answer", "cases"),
-                    f"no case for kind target(s): {', '.join(sorted(missing))}",
+                    f"no case for choice(s): {', '.join(sorted(missing))}",
+                    "error",
+                )
+            extra = set(step.on_answer.cases) - set(step.choices or {})
+            if extra:
+                yield (
+                    where + ("on_answer", "cases"),
+                    f"case(s) {', '.join(sorted(extra))} are not choices of this step",
                     "error",
                 )
             nexts += [("on_answer", target) for target in step.on_answer.cases.values()]
@@ -372,17 +407,27 @@ def option_names(source: str, domain: Domain, technical: Technical) -> set[str]:
     """Every name a classification step with this option source can answer."""
     aggregations = {n for n, a in domain.associations.items() if a.kind == "aggregation"}
     return {
-        "areas": set(domain.areas),
-        "services_in_area": set(domain.services),
-        "kinds": set(technical.kinds),
-        "entities_in_area": set(domain.entities),
-        "aggregations_in_area": aggregations,
+        "targets": set(domain.entities) | aggregations,
+        "target_parent": set(domain.entities),
+        "operations": set(technical.operations),
+        "offered_kinds": set(technical.kinds),
+        "services_for_target_kind": set(domain.services),
     }[source]
 
 
-def check_evals(evals: ClassifyEvals, domain: Domain, technical: Technical) -> Iterator[Finding]:
+def step_answers(step, domain: Domain, technical: Technical) -> set[str]:
+    if step.choices is not None:
+        return set(step.choices)
+    return option_names(step.options, domain, technical)
+
+
+def check_evals(
+    evals: ClassifyEvals, domain: Domain, technical: Technical, factories: set[str]
+) -> Iterator[Finding]:
     """Eval cases name outcomes, steps and answers that exist."""
     flow = technical.classification
+    steps = set(flow.steps) | set(PLATFORM_STEPS)
+    known_steps = _known(steps)
     groups = Counter(case.group for case in evals.cases if case.group)
     for index, case in enumerate(evals.cases):
         at = ("cases", index, "expect")
@@ -396,20 +441,24 @@ def check_evals(evals: ClassifyEvals, domain: Domain, technical: Technical) -> I
                 )
         for field in ("path", "not_asked"):
             for step in getattr(expect, field) or []:
-                if step not in flow.steps:
-                    yield (
-                        at + (field,),
-                        f"unknown step '{step}' (steps: {_known(flow.steps)})",
-                        "error",
-                    )
+                if step not in steps:
+                    yield (at + (field,), f"unknown step '{step}' (steps: {known_steps})", "error")
         for step, answer in expect.answers.items():
-            if step not in flow.steps:
+            if step not in steps:
                 yield (
                     at + ("answers", step),
-                    f"unknown step '{step}' (steps: {_known(flow.steps)})",
+                    f"unknown step '{step}' (steps: {known_steps})",
                     "error",
                 )
-            elif answer not in option_names(flow.steps[step].options, domain, technical):
+                continue
+            if step == "name":
+                continue  # a proposed name for a new service
+            possible = (
+                factories
+                if step == "factory"
+                else step_answers(flow.steps[step], domain, technical)
+            )
+            if answer not in possible:
                 yield (
                     at + ("answers", step),
                     f"'{answer}' is not a possible answer for step '{step}'",

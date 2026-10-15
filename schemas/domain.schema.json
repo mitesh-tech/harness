@@ -347,6 +347,19 @@
   },
   "additionalProperties": false,
   "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
     "areas": {
       "maxProperties": 15,
       "minProperties": 1,

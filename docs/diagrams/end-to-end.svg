@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="680" height="1240" viewBox="0 0 680 1240" role="img">
 <title>End-to-end flow with the CRUD API factory</title>
-<desc>A task goes to the factory router (SemIf); if no factory fits it ends as unsupported. In the CRUD API factory, SemIf picks the entity or connection from the domain KB; if none, the user adds it. SemIf decides new API or change. For a new API: SemIf picks the CRUD operation and the kind follows from the target, a lookup finds existing services which SemIf confirms, and the data mapping must exist or it ends as no mapping. For a change: SemIf identifies add or remove attribute and Prolog analyses affected APIs. Both lead to Prolog resolving the design. A spec is generated and saved in the run folder. You confirm the spec by approving or editing it; edits are re-checked. Code is generated from the confirmed spec using the factory templates for the stack pack, then verified against the spec, reported, and learned from, with learning feeding back into the knowledge base.</desc>
+<desc>A task goes to the factory router (SemIf); if no factory fits it ends as unsupported. In the CRUD API factory, SemIf picks the entity or connection from the domain KB; if none fits, the domain must change first (the domain-model factory's job). A rule adds the composition parent, if any. SemIf picks the CRUD operation and the kind follows from the target, a lookup finds existing services which SemIf confirms, and the data mapping must exist or it ends as no mapping. Prolog resolves the design. A spec is generated and saved in the run folder. You confirm the spec by approving or editing it; edits are re-checked. Code is generated from the confirmed spec using the factory templates for the stack pack, then verified against the spec, reported, and learned from, with learning feeding back into the knowledge base.</desc>
 <style>
   text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
   .th { font-size: 14px; font-weight: 500; }
@@ -34,19 +34,13 @@
 <line class="arr" x1="170" y1="228" x2="200" y2="228" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
 <g class="c-teal"><rect x="200" y="200" width="260" height="56" rx="4"/><text class="th" x="330" y="223" text-anchor="middle">Which entity or connection?</text><text class="ts" x="330" y="242" text-anchor="middle">SemIf, options from the KB</text></g>
 <line class="arr" x1="460" y1="228" x2="490" y2="228" marker-end="url(#arrow)"/>
-<g class="c-coral"><rect x="490" y="200" width="150" height="56" rx="4"/><text class="th" x="565" y="223" text-anchor="middle">NO_ENTITY</text><text class="ts" x="565" y="242" text-anchor="middle">you add it (P2: LLM)</text></g>
+<g class="c-coral"><rect x="490" y="200" width="150" height="56" rx="4"/><text class="th" x="565" y="223" text-anchor="middle">NO_ENTITY</text><text class="ts" x="565" y="242" text-anchor="middle">domain-model factory</text></g>
 <line class="arr" x1="330" y1="256" x2="330" y2="280" marker-end="url(#arrow)"/>
-<g class="c-teal"><rect x="200" y="280" width="260" height="56" rx="4"/><text class="th" x="330" y="303" text-anchor="middle">New API or change?</text><text class="ts" x="330" y="322" text-anchor="middle">SemIf</text></g>
-<line class="arr" x1="460" y1="308" x2="490" y2="308" marker-end="url(#arrow)"/>
-<g class="c-teal"><rect x="490" y="280" width="150" height="56" rx="4"/><text class="th" x="565" y="303" text-anchor="middle">B: CHANGE_API</text><text class="ts" x="565" y="322" text-anchor="middle">add/remove attribute</text></g>
-<line class="arr" x1="565" y1="336" x2="565" y2="360" marker-end="url(#arrow)"/>
-<g class="c-gray"><rect x="490" y="360" width="150" height="56" rx="4"/><text class="th" x="565" y="383" text-anchor="middle">Impact analysis</text><text class="ts" x="565" y="402" text-anchor="middle">Prolog: affected APIs</text></g>
-<path class="arr" d="M640 388 H658 V628 H460" marker-end="url(#arrow)"/>
+<g class="c-gray"><rect x="200" y="280" width="260" height="56" rx="4"/><text class="th" x="330" y="303" text-anchor="middle">Part of a parent?</text><text class="ts" x="330" y="322" text-anchor="middle">rule: composition</text></g>
 <line class="arr" x1="330" y1="336" x2="330" y2="360" marker-end="url(#arrow)"/>
-<text class="sub" x="336" y="352">new</text>
 <g class="c-coral"><rect x="40" y="360" width="130" height="56" rx="4"/><text class="th" x="105" y="383" text-anchor="middle">CRUD knowledge</text><text class="ts" x="105" y="402" text-anchor="middle">operations, rules</text></g>
 <line class="arr" x1="170" y1="388" x2="200" y2="388" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
-<g class="c-teal"><rect x="200" y="360" width="260" height="56" rx="4"/><text class="th" x="330" y="383" text-anchor="middle">A: which operation?</text><text class="ts" x="330" y="402" text-anchor="middle">create, read, update, delete → kind</text></g>
+<g class="c-teal"><rect x="200" y="360" width="260" height="56" rx="4"/><text class="th" x="330" y="383" text-anchor="middle">Which operation?</text><text class="ts" x="330" y="402" text-anchor="middle">create, read, update, delete → kind</text></g>
 <line class="arr" x1="330" y1="416" x2="330" y2="440" marker-end="url(#arrow)"/>
 <g class="c-gray"><rect x="200" y="440" width="260" height="56" rx="4"/><text class="th" x="330" y="463" text-anchor="middle">Find service</text><text class="ts" x="330" y="482" text-anchor="middle">lookup; SemIf confirms or new</text></g>
 <line class="arr" x1="330" y1="496" x2="330" y2="520" marker-end="url(#arrow)"/>

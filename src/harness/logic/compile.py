@@ -221,7 +221,8 @@ def _technical_facts(p: Program, technical: Technical) -> None:
             if isinstance(step.on_answer, str)
             else list(step.on_answer.cases.values())
         )
-        for target in dict.fromkeys([*answers, step.on_none, flow.low_confidence]):
+        nexts = [*answers, step.on_none, step.on_empty, flow.low_confidence]
+        for target in dict.fromkeys(n for n in nexts if n is not None):
             p.add("flow_edge/2", f"flow_edge({s}, {atom(target)}).")
 
 
