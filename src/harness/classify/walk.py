@@ -46,16 +46,18 @@ def classify(
     model: DecisionModel,
     threshold: float,
     factories: Mapping[str, FactoryManifest] | None = None,
+    data=None,
 ) -> Trace:
     """Classify one task; the trace holds every step, the outcome and the answers.
 
     factories: the enabled factories to choose from; without them the factory
     step is skipped (the knowledge given is the factory's).
+    data: the project's loaded data.yaml; without it every task ends as no_mapping.
     """
     trace = Trace(task, threshold)
     started = time.perf_counter()
     flow = technical.classification
-    ctx = Context(domain, technical, Engine(domain, technical))
+    ctx = Context(domain, technical, Engine(domain, technical), data)
 
     current = flow.start
     if factories:

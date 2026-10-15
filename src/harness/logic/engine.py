@@ -44,6 +44,9 @@ MESSAGES = {
     "target_name_clash": (
         "{name} has the same name in Prolog as an association; rename one of them"
     ),
+    "source_cannot_persist": "its source {1} cannot do {0}, which this kind of API needs",
+    "source_cannot_filter": "its source {0} cannot filter lists, which this service's filters need",
+    "relationship_not_stored": "{name} has no entry under relationships in data.yaml",
     "conflicting_decisions": "rules disagree on {0}: {1} (rule {2}) vs {3} (rule {4})",
     "flow_cycle": "step '{name}' can lead back to itself; the classification could loop forever",
     "flow_unreachable": "step '{name}' can never be reached from the start",
@@ -60,11 +63,17 @@ class LogicProblem:
 
 
 class Engine:
-    def __init__(self, domain: Domain, technical: Technical, factory_checks: Sequence[Path] = ()):
+    def __init__(
+        self,
+        domain: Domain,
+        technical: Technical,
+        factory_checks: Sequence[Path] = (),
+        data=None,
+    ):
         self._janus = _janus()
         self.names = NameMap(domain)
         self.module = f"harness_kb_{next(_modules)}"
-        self.program = compile_knowledge(domain, technical)
+        self.program = compile_knowledge(domain, technical, data)
         self._janus.consult(f"{self.module}_knowledge", data=self.program, module=self.module)
         self._janus.consult(
             f"{self.module}_library", data=library(factory_checks), module=self.module

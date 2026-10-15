@@ -22,6 +22,7 @@ class Context:
     domain: Domain
     technical: Technical
     engine: Engine
+    data: object | None = None  # the project's loaded data.yaml
 
     def target_atom(self, target: str) -> str:
         """Entities are lowercase in Prolog (Book -> book); association names already are."""
@@ -111,12 +112,35 @@ def services_for_target_kind(ctx: Context, answers: Answers) -> list[Option]:
     ]
 
 
+def target_storage(ctx: Context, answers: Answers) -> list[Option]:
+    """Where the target is stored (and its parent, for a composition), from data.yaml."""
+    if ctx.data is None:
+        return []
+    target = answers["target"]
+    mapping = ctx.data.entities.get(target) or ctx.data.relationships.get(target)
+    if mapping is None:
+        return []
+    parent = answers.get("parent")
+    if parent and parent not in ctx.data.entities:
+        return []
+    source = ctx.data.sources[mapping.source]
+    if target in ctx.data.entities:
+        where = f"table {mapping.table}"
+    elif mapping.stored_as == "link_table":
+        where = f"link table {mapping.table}"
+    else:
+        where = f"column {mapping.column}"
+    reason = f"{target} is stored in {source.name} ({source.type.name}), {where}"
+    return [Option(source.name, source.spec.description or source.type.name, reason=reason)]
+
+
 OPTION_SOURCES: dict[str, Source] = {
     "targets": targets,
     "target_parent": target_parent,
     "operations": operations,
     "offered_kinds": offered_kinds,
     "services_for_target_kind": services_for_target_kind,
+    "target_storage": target_storage,
 }
 
 # Why a step had nothing to choose from; recorded in the trace.
@@ -124,4 +148,5 @@ EMPTY = {
     "target_parent": "{target} is not part of another thing",
     "offered_kinds": "no kind of {operation} works on {target}",
     "services_for_target_kind": "no service acts on {target} with kind {kind}",
+    "target_storage": "{target} (or its parent) has no entry in data.yaml",
 }

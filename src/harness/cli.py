@@ -9,8 +9,8 @@ import typer
 from harness import __version__
 from harness.factories import FACTORIES_DIR
 from harness.knowledge.load import Problem
-from harness.knowledge.schema import SCHEMAS
 from harness.knowledge.validate import Report, validate_project
+from harness.schemas import SCHEMAS
 
 app = typer.Typer(
     help="A model-agnostic AI harness for building backend APIs.",
@@ -32,12 +32,14 @@ EXIT_CODES = {
     "new_service": 0,
     "unsure": 2,
     "no_entity": 2,
+    "no_mapping": 2,
     "unsupported": 2,
 }
 HINTS = {
     "new_service": "No existing service fits; a new one can be designed from these facts.",
     "no_entity": "No entity in the domain fits; the domain needs changing first "
     "(the domain-model factory's job).",
+    "no_mapping": "data.yaml doesn't say where this is stored; add its entry first.",
     "unsupported": "No factory, or no kind of CRUD API, handles this task yet.",
 }
 
@@ -69,9 +71,15 @@ def validate(
     strict: Annotated[
         bool, typer.Option("--strict", help="Treat skipped logic checks (no Prolog) as an error.")
     ] = False,
+    introspect: Annotated[
+        bool,
+        typer.Option(
+            "--introspect", help="Also compare data.yaml with the real data sources (read-only)."
+        ),
+    ] = False,
 ) -> None:
     """Check a project's harness.yaml and knowledge files."""
-    report = validate_project(project, strict=strict)
+    report = validate_project(project, strict=strict, introspect=introspect)
 
     if report.root:
         typer.echo(f"Project   {report.root}")
@@ -82,6 +90,9 @@ def validate(
     if report.logic:
         mark = {"no problems": "✓", "skipped": "!"}.get(report.logic, "✗")
         typer.echo(f"  {mark} {'logic checks (Prolog)':<36} {report.logic}")
+    if report.introspection:
+        mark = "✓" if report.introspection == "matches" else "!"
+        typer.echo(f"  {mark} {'data sources (introspection)':<36} {report.introspection}")
     _print_problems(report)
 
     errors, warnings = len(report.errors), len(report.warnings)
@@ -113,7 +124,11 @@ def kb_export(
     from harness.logic.compile import compile_knowledge, library
 
     report = _valid_knowledge(project)
-    program = compile_knowledge(report.domain, report.technical) + "\n" + library(_checks(report))
+    program = (
+        compile_knowledge(report.domain, report.technical, report.data)
+        + "\n"
+        + library(_checks(report))
+    )
     if out is None:
         typer.echo(program, nl=False)
     else:
@@ -131,7 +146,7 @@ def kb_query(
 
     report = _valid_knowledge(project)
     try:
-        engine = Engine(report.domain, report.technical, _checks(report))
+        engine = Engine(report.domain, report.technical, _checks(report), report.data)
         answers = engine.query(goal.strip().removesuffix("."))
     except PrologUnavailable as exc:
         typer.echo(str(exc), err=True)
@@ -245,7 +260,9 @@ def _options_read(report: Report, step: str, answers: dict[str, str]):
         options = [Option(n, m.description, tuple(m.examples)) for n, m in manifests.items()]
         return [*options, Option(NONE, render(FACTORY_NONE, report.domain, answers))]
     spec = report.technical.classification.steps[step]
-    ctx = Context(report.domain, report.technical, Engine(report.domain, report.technical))
+    ctx = Context(
+        report.domain, report.technical, Engine(report.domain, report.technical), report.data
+    )
     options = step_options(spec, ctx, answers)
     return [*options, none_option(spec, report.domain, answers)]
 
@@ -300,6 +317,7 @@ def _classify(report: Report, task: str):
             make_model(report),
             settings.threshold,
             manifests,
+            report.data,
         )
     except (DecisionModelError, PrologUnavailable) as exc:
         typer.echo(str(exc), err=True)

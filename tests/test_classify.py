@@ -241,7 +241,9 @@ def test_unreachable_server_has_a_clear_message():
 
 @pytest.mark.parametrize("case", CASES, ids=[c.task for c in CASES])
 def test_classification(bookstore, manifests, model, case):
-    trace = classify(case.task, bookstore.domain, bookstore.technical, model, 0.8, manifests)
+    trace = classify(
+        case.task, bookstore.domain, bookstore.technical, model, 0.8, manifests, bookstore.data
+    )
     result = check_case(case, trace)
     assert result.passed, _explain(result)
     # every step is recorded with its question, options, answer and confidence
@@ -259,7 +261,9 @@ def test_classification(bookstore, manifests, model, case):
 
 def test_strict_threshold_turns_answers_into_unsure(bookstore, manifests, model):
     task = "Readers should be able to rate a book from 1 to 5 through a new endpoint"
-    trace = classify(task, bookstore.domain, bookstore.technical, model, 1.0, manifests)
+    trace = classify(
+        task, bookstore.domain, bookstore.technical, model, 1.0, manifests, bookstore.data
+    )
     assert trace.outcome == "unsure"
     assert not trace.events[-1].accepted
 
@@ -288,7 +292,8 @@ def test_cli_classify_matched(cli_model):
     task = "Add a new book through an endpoint"
     result = runner.invoke(app, ["classify", task, "-p", str(BOOKSTORE)])
     assert result.exit_code == 0, result.output
-    assert "Outcome   MATCHED: Book › create › create › add_book" in result.output
+    assert "Outcome   MATCHED: Book › bookstore_db › create › create › add_book" in result.output
+    assert "data         rule   bookstore_db" in result.output
     assert "kind         rule   create" in result.output
 
 
@@ -310,6 +315,7 @@ def test_cli_classify_json(cli_model):
     assert data["answers"] == {
         "factory": "crud-api",
         "target": "Book",
+        "data": "bookstore_db",
         "operation": "create",
         "kind": "create",
         "service": "add_book",
@@ -318,6 +324,7 @@ def test_cli_classify_json(cli_model):
         "factory",
         "target",
         "parent",
+        "data",
         "operation",
         "kind",
         "service",
@@ -346,7 +353,16 @@ def test_cli_classify_trace(cli_model, tmp_path):
     trace = Trace.from_jsonl(out.read_text())
     assert trace.outcome == "new_service"
     assert trace.answers["name"] == "add_publisher"
-    assert trace.path == ["factory", "target", "parent", "operation", "kind", "service", "name"]
+    assert trace.path == [
+        "factory",
+        "target",
+        "parent",
+        "data",
+        "operation",
+        "kind",
+        "service",
+        "name",
+    ]
     assert trace.url == SEMIF_URL
 
 

@@ -1,0 +1,31 @@
+# The relational source type: SQL databases (SQLite, PostgreSQL, MySQL).
+# An entity is stored in a table, each attribute in a column.
+name: relational
+description: "A SQL database: each entity in a table, each attribute in a column"
+
+# What it can do: the persistence each kind needs (see the factory's
+# technical.yaml), plus filtering and paging of lists.
+capabilities:
+  - insert_row
+  - select_one
+  - select_many
+  - update_row
+  - replace_row
+  - delete_row
+  - soft_delete        # mark a row deleted instead of removing it
+  - insert_link
+  - delete_link
+  - filter
+  - paging
+
+# Ways a value can be stored differently from the attribute type.
+converters:
+  money_cents:
+    description: "Money stored as a whole number of cents"
+    types: [money]
+  bool_int:
+    description: "A yes/no stored as 0 or 1"
+    types: [boolean]
+  iso_text:
+    description: "A date or time stored as ISO 8601 text"
+    types: [date, datetime]

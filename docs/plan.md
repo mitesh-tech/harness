@@ -36,7 +36,8 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | Operations and targets (S2a) | Done |
 | Traces and eval cases (S2b) | Done |
 | Classification with the factory router, CRUD flow, planned domain-model factory (S2c) | Done |
-| Data layer, resolve, spec, generation, verification, learning | Planned below |
+| Data layer (S3) | Done |
+| Resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages
 
@@ -49,7 +50,7 @@ Each stage is one or two pull requests, ends with something you can run, and sta
 | **S2a: CRUD knowledge** | **Operation layer** (create, read, update, delete → kinds); **targets**: entities and connections (aggregations); `offered_kind/4` in Prolog (kind by target, transition only with a lifecycle); operation checks | `harness kb query "offered_kind(update, book, K, Why)"` |
 | **S2b: Traces and eval cases** | A **trace** of every decision (step, by SemIf or rule, options, answer, confidence, margin, time); eval cases that check the **path**, questions not asked, number of SemIf calls and paraphrase groups; the first wrong step is reported | `harness classify "…" --trace` |
 | **S2c: Classification** | **Factory router** (a gate while there is one factory); target first (entity or connection); parent by rule; operation → kind (by rule when only one) → lookup → SemIf confirms; questions in domain language with the target's context; outcomes `UNSUPPORTED`, `NO_ENTITY`, `NEW_SERVICE`, `MATCHED`, `UNSURE`; kind `update` renamed `change`; SemIf answers re-recorded | `harness classify "…"` |
-| **S3: Data layer** | `.harness/data.yaml` (sources, conventions, mappings); **relational** source plugin (schema, capabilities, optional introspection); mapping checks; `NO_MAPPING` | `harness validate --introspect` |
+| **S3: Data layer** | `.harness/data.yaml` (sources, entities → tables and columns, relationships, written out in full); **relational** source-type plugin (capabilities, converters, introspection); checks in Python and Prolog; classification step `data` → `NO_MAPPING` | `harness validate --introspect` |
 | **S4: Resolve and spec** | **API anatomy rules** in Prolog (request body, path and query parameters, response, statuses), data mapping, askable yes/no questions to SemIf, sources for every value, open questions; **dependents and delete policy** (`dependent/2` through compositions and references, `on_delete`: cascade, restrict or set_null); `spec.yaml` + `openapi.yaml`; resolve decisions in the trace | `harness resolve "…"` |
 | **S5: Confirm, generate, verify, report (create)** | Confirm the spec (approve, edit and re-check, reject); FastAPI templates (route, schemas, repository interface, relational adapter, tests); router registration; git worktree; verification against the spec; report | `harness run "Let staff add a new publisher"` |
 | **S6: All CRUD kinds** | read one, list (filters are response fields, paging), update, replace, transition (guarded by the lifecycle), delete; link and unlink for connections; nested APIs for composition | `harness run` for any CRUD task |
@@ -60,6 +61,7 @@ Each stage is one or two pull requests, ends with something you can run, and sta
 
 | Item | Notes |
 |---|---|
+| **Data-modelling factory** | Creates or updates `data.yaml`, e.g. by reading an existing database (S3's introspection) and drafting the mapping for your approval |
 | **Domain-model factory, extended** | LLM-guided design of larger domain changes: asks the right questions, considers the existing domain model, drafts YAML for your approval |
 | Trace export | Send traces to tools such as Langfuse or Inspect AI |
 | More data sources | REST APIs of other services, document stores |

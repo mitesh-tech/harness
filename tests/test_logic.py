@@ -168,6 +168,7 @@ def test_cascade_rule_prevents_the_problem(project):
 
 
 def test_composition_cycle(project):
+    (project / ".harness/data.yaml").unlink()  # Book would also need a parent_key there
     edit(
         project / ".harness/domain.yaml",
         "  collection_books:",

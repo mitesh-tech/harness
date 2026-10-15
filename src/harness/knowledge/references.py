@@ -412,7 +412,13 @@ def option_names(source: str, domain: Domain, technical: Technical) -> set[str]:
         "operations": set(technical.operations),
         "offered_kinds": set(technical.kinds),
         "services_for_target_kind": set(domain.services),
+        "target_storage": set(),  # source names from data.yaml; eval cases don't check them
     }[source]
+
+
+def _answers_unchecked(step) -> bool:
+    """Steps whose answers come from data.yaml, which eval cases don't check."""
+    return step is not None and step.options == "target_storage"
 
 
 def step_answers(step, domain: Domain, technical: Technical) -> set[str]:
@@ -451,8 +457,8 @@ def check_evals(
                     "error",
                 )
                 continue
-            if step == "name":
-                continue  # a proposed name for a new service
+            if step == "name" or _answers_unchecked(flow.steps.get(step)):
+                continue  # a proposed name, or a source name from data.yaml
             possible = (
                 factories
                 if step == "factory"

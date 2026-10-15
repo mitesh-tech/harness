@@ -163,7 +163,8 @@ def test_group_with_different_paths_fails():
 def test_option_names_cover_every_source():
     report = validate_project(BOOKSTORE, logic=False)
     for source in OptionSource.__args__:
-        assert option_names(source, report.domain, report.technical)
+        if source != "target_storage":  # source names come from data.yaml
+            assert option_names(source, report.domain, report.technical)
 
 
 def test_bookstore_evals_load():
@@ -182,15 +183,16 @@ def test_unknown_outcome_step_and_answer(project):
     edit(path, "service: list_books }", "service: list_bookz }")
     assert eval_errors(project) == [
         "'list_bookz' is not a possible answer for step 'service'",
-        "unknown step 'knd' (steps: factory, kind, name, operation, parent, service, target)",
-        "unknown outcome 'lost' (outcomes: matched, new_service, no_entity, unsupported, unsure)",
+        "unknown step 'knd' (steps: data, factory, kind, name, operation, parent, service, target)",
+        "unknown outcome 'lost' (outcomes: matched, new_service, no_entity, no_mapping, "
+        "unsupported, unsure)",
     ]
 
 
 def test_step_both_in_path_and_not_asked(project):
     edit(
         project / ".harness/evals/classify.yaml",
-        "semif_calls: 4  # parent and kind are decided by rule",
+        "semif_calls: 4  # parent, data and kind are decided by rule",
         "semif_calls: 4\n      not_asked: [service]",
     )
     assert eval_errors(project) == ["step(s) service are both in path and in not_asked"]

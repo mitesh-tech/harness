@@ -20,11 +20,15 @@ harness = "harness.cli:app"
 prolog = [
     "janus-swi>=1.5",
 ]
+relational = [
+    "sqlalchemy>=2.0",
+]
 
 [dependency-groups]
 dev = [
   "janus-swi>=1.5",
   "pytest>=8",
+  "sqlalchemy>=2.0",
   "ruff>=0.6",
 ]
 

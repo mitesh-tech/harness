@@ -56,6 +56,8 @@ my-project/
 ├── harness.yaml          # which stack pack and factories, where the knowledge lives
 └── .harness/
     ├── domain.yaml       # areas, entities, associations, services (business language)
+    ├── data.yaml         # where it is stored: sources, entities → tables and columns
+    ├── evals/            # classification eval cases
     └── factories/
         └── crud-api/
             └── technical.yaml   # optional: overrides the factory's technical knowledge
@@ -91,6 +93,27 @@ uv run harness kb export --project examples/bookstore --out kb.pl && swipl kb.pl
 Every derived decision carries the id of the rule that produced it, e.g. `C = parent_exists_check   Rule = composition-nested`.
 
 For autocomplete and inline errors while editing, the files reference JSON Schemas in [schemas/](schemas/) (regenerate them with `uv run harness schema export`). Editors with YAML language support, such as VS Code with the YAML extension, pick them up automatically.
+
+## Data sources and mappings
+
+`.harness/data.yaml` says where the domain is stored: the data **sources** (type and how to connect, with connection details from environment variables), and for each **entity** its source, table and a column per attribute, and for each **relationship** its link table or reference column. See [Bookstore's](examples/bookstore/.harness/data.yaml).
+
+Each source's `type` is a plugin in [src/harness/datasources/](src/harness/datasources/) (today: `relational`) that decides what may be written for it and what it can do. Compare the file with the real database:
+
+```bash
+uv run harness validate --project examples/bookstore --introspect
+```
+
+```
+  ! data sources (introspection)         7 differences
+  ! .harness/data.yaml:23  entities › Book › columns › isbn
+      column 'isbn' not found in books
+  ! .harness/data.yaml:31  entities › Publisher › table
+      table 'publishers' not found (it is created when Publisher's first API is generated)
+  …
+```
+
+Introspection needs SQLAlchemy (`harness[relational]`). A task about an entity with no entry in `data.yaml` ends as `NO_MAPPING`.
 
 ## Running SemIf
 

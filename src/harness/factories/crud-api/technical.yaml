@@ -248,6 +248,9 @@ rules:
 # (`none` -> unsupported). With one factory installed it is a gate: only a
 # winning "none" stops the task.
 #
+# The `data` step checks data.yaml: an entity (or relationship) with no
+# entry there ends as no_mapping, before any question about the operation.
+#
 # The flow covers CRUD only. Changing the domain itself (new entities,
 # attributes or relationships) is the domain-model factory's job; a task
 # about an entity that doesn't exist ends as no_entity.
@@ -272,7 +275,7 @@ rules:
 classification:
   start: target
   low_confidence: unsure
-  outcomes: [matched, new_service, unsure, no_entity, unsupported]
+  outcomes: [matched, new_service, unsure, no_entity, no_mapping, unsupported]
   steps:
     target:
       question: "This task is for {system}. Which domain entity is the task about, or which relationship between two domain entities?"
@@ -286,9 +289,17 @@ classification:
       question: "Which thing is it part of?"
       options: target_parent
       skip_if_single: true
+      on_answer: data
+      on_none: data
+      on_empty: data
+
+    data:
+      question: "Where is it stored?"
+      options: target_storage
+      skip_if_single: true
       on_answer: operation
-      on_none: operation
-      on_empty: operation
+      on_none: no_mapping
+      on_empty: no_mapping
 
     operation:
       question: "This task is for {system}. {target_context} What does the task do with a {target}?"

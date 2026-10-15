@@ -121,51 +121,67 @@ Until that factory exists, such tasks end as `UNSUPPORTED` or `UNSURE`. The CRUD
 
 ## Data layer
 
-Data sources are **pluggable**. Generated APIs depend on a **repository interface** per resource (get, list, create, update, delete); a source adapter implements it.
+`domain.yaml` says **what** the business has; `.harness/data.yaml` says **where it is stored**. Generated APIs depend on a **repository interface** per resource (get, list, create, update, delete); a source adapter implements it.
 
 ```
 API route → business logic → repository interface → source adapter → data store
 ```
 
+### `.harness/data.yaml`
+
+Three sections, everything written out:
+
+```yaml
+sources:                                    # the data stores
+  bookstore_db:
+    type: relational                        # a source-type plugin
+    description: "The bookstore's own SQLite database"
+    connection:
+      url_env: BOOKSTORE_DATABASE_URL       # from the environment: never secrets in YAML
+      default_url: sqlite:///./bookstore.db # local fallback only
+
+entities:                                   # where each entity is stored
+  Book:
+    source: bookstore_db
+    table: books
+    columns: { id: id, isbn: isbn, title: title, author: author, price: price, status: status }
+  Review:
+    source: bookstore_db
+    table: reviews
+    parent_key: book_id                     # part of a Book: the column pointing at its Book
+    columns: { id: id, rating: rating, comment: comment }
+
+relationships:                              # how each connection is stored
+  collection_books:                         # many-to-many: a link table, a key per side
+    source: bookstore_db
+    table: collection_books
+    keys: { Collection: collection_id, Book: book_id }
+  book_publisher:                           # one-to-many: a column on the child's table
+    source: bookstore_db
+    column: books.publisher_id
+```
+
+A column can also be written in long form: `price: { column: price_cents, convert: money_cents }`, or `{ stored: false }` for an attribute that isn't stored.
+
 ### Source types are plugins
+
+`type:` names the plugin that handles a source. The plugin decides what may be written for it (a relational source maps an entity to a table and columns; a REST source would map it to an endpoint and fields), what it can do, and how to read the real source.
 
 ```
 src/harness/datasources/<type>/
-├── source.yaml      # description and capabilities
-├── schema.py        # shape of its configuration and mappings
-├── introspect.py    # optional: read the real schema to check mappings
-└── templates/<pack>/
+├── source.yaml      # description, capabilities, converters
+├── schema.py        # Connection, EntityMapping, RelationshipMapping
+├── introspect.py    # optional: read the real tables and columns
+└── templates/<pack>/  (S5: the repository code for this type)
 ```
 
-Phase 1 has one type, **relational** (SQLite, PostgreSQL, MySQL). A source type's **capabilities** (for example `delete`, `filter`, `paging`, `transactions`) feed the Prolog checks: an API a source can't support is reported before anything is generated.
+Phase 1 has one type, **relational** (SQLite, PostgreSQL, MySQL). Its **capabilities** are the kinds' persistence names (`insert_row`, `select_many`, `insert_link`, …) plus `filter` and `paging`; Prolog reports an API a source can't support (`source_cannot_persist`, `source_cannot_filter`) before anything is designed.
 
-### `.harness/data.yaml`
+### Checks
 
-```yaml
-sources:
-  main:
-    type: relational
-    config:
-      dialect: sqlite
-      url_env: BOOKSTORE_DATABASE_URL        # connection details come from the environment
-      default_url: sqlite:///./bookstore.db  # local default only; never secrets in YAML
-    conventions:
-      table_names: plural_snake              # Book → books
-      column_names: same                     # column = attribute
+`harness validate` checks that every entry names a known source of an installed type, fits that type's shape, matches `domain.yaml` (every attribute and the lifecycle field has a column or `stored: false`; converters fit the attribute types; a composition child has `parent_key`; a many-to-many relationship has a link table with a key per side; a one-to-many one has a column on the child's table), and that `default_url` is local with no password. An entity or relationship without an entry is a warning; a task about it ends as `NO_MAPPING`.
 
-mappings:
-  Book:
-    source: main
-    fields:
-      price: { column: price_cents, convert: money_cents }   # only the exceptions
-  Review:
-    source: main
-    parent_key: book_id                      # composition: points at its Book
-  Publisher:
-    source: main
-```
-
-Checks: every mapping names a known source, fits that source type's mapping shape, maps every attribute (by convention or explicitly, or marks it `stored: false`), uses converters that fit the attribute types, and gives composition children a `parent_key`. `harness validate --introspect` optionally checks tables and columns against the real database. A new API requires its entity's mapping.
+`harness validate --introspect` reads the real database (read-only) and reports differences as warnings: missing tables or columns, and columns not in the domain.
 
 ## The spec
 

@@ -231,6 +231,26 @@ class ClassifyEvals(Model):
     cases: list[EvalCase] = Field(min_length=1)
 
 
+# ── data.yaml ───────────────────────────────────────────────────────
+# Where each entity and relationship is stored. The shape of a source's
+# connection and of each entry depends on the source's type, so those parts
+# are checked by the source-type plugin (harness.datasources.<type>).
+
+
+class SourceSpec(Model):
+    type: KebabName  # a source-type plugin, e.g. relational
+    description: Text | None = None
+    connection: dict[str, object] = Field(default_factory=dict)
+
+
+class DataFile(Model):
+    """A project's .harness/data.yaml: the data sources and what is stored where."""
+
+    sources: dict[SnakeName, SourceSpec] = Field(min_length=1)
+    entities: dict[EntityName, dict[str, object]] = Field(default_factory=dict)
+    relationships: dict[SnakeName, dict[str, object]] = Field(default_factory=dict)
+
+
 # ── technical.yaml ──────────────────────────────────────────────────
 
 
@@ -315,6 +335,7 @@ OptionSource = Literal[
     "operations",
     "offered_kinds",
     "services_for_target_kind",
+    "target_storage",
 ]
 # Steps the platform adds around a factory's flow: choosing the factory,
 # and naming a new service.

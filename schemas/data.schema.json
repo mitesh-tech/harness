@@ -1,0 +1,252 @@
+{
+  "$defs": {
+    "Column": {
+      "additionalProperties": false,
+      "description": "An attribute stored under another name, converted, or not stored at all.",
+      "properties": {
+        "column": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Column"
+        },
+        "convert": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Convert"
+        },
+        "stored": {
+          "default": true,
+          "title": "Stored",
+          "type": "boolean"
+        }
+      },
+      "title": "Column",
+      "type": "object"
+    },
+    "Connection": {
+      "additionalProperties": false,
+      "description": "How to reach the database. Connection details come from the environment.",
+      "properties": {
+        "url_env": {
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Url Env",
+          "type": "string"
+        },
+        "default_url": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Default Url"
+        }
+      },
+      "required": [
+        "url_env"
+      ],
+      "title": "Connection",
+      "type": "object"
+    },
+    "EntityMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source",
+          "type": "string"
+        },
+        "table": {
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "title": "Table",
+          "type": "string"
+        },
+        "columns": {
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/$defs/Column"
+                }
+              ]
+            }
+          },
+          "title": "Columns",
+          "type": "object"
+        },
+        "parent_key": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Key"
+        }
+      },
+      "required": [
+        "source",
+        "table",
+        "columns"
+      ],
+      "title": "EntityMapping",
+      "type": "object"
+    },
+    "RelationshipMapping": {
+      "additionalProperties": false,
+      "description": "A many-to-many link table with a key per side, or a one-to-many reference column.",
+      "properties": {
+        "source": {
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source",
+          "type": "string"
+        },
+        "table": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table"
+        },
+        "keys": {
+          "anyOf": [
+            {
+              "patternProperties": {
+                "^[A-Z][A-Za-z0-9]*$": {
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Keys"
+        },
+        "column": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Column"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "RelationshipMapping",
+      "type": "object"
+    },
+    "SourceForEditors": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "connection": {
+          "$ref": "#/$defs/Connection"
+        }
+      },
+      "required": [
+        "type",
+        "connection"
+      ],
+      "title": "SourceForEditors",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "data.yaml with relational sources, for editor autocomplete (data.schema.json).",
+  "properties": {
+    "sources": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/SourceForEditors"
+        }
+      },
+      "title": "Sources",
+      "type": "object"
+    },
+    "entities": {
+      "patternProperties": {
+        "^[A-Z][A-Za-z0-9]*$": {
+          "$ref": "#/$defs/EntityMapping"
+        }
+      },
+      "title": "Entities",
+      "type": "object"
+    },
+    "relationships": {
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "$ref": "#/$defs/RelationshipMapping"
+        }
+      },
+      "title": "Relationships",
+      "type": "object"
+    }
+  },
+  "required": [
+    "sources"
+  ],
+  "title": "DataFileForEditors",
+  "type": "object"
+}
