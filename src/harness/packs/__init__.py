@@ -47,6 +47,7 @@ class PackManifest(Model):
     commands: dict[str, list[Text]] = Field(default_factory=dict)  # test, lint, python
     fixtures: dict[str, Text] = Field(default_factory=dict)  # client, session
     # How to build the app, to read its own OpenAPI: module:function and its arguments.
+    artifacts: list[Text] = Field(default_factory=list)  # left behind by running the stack
     app_factory: Text | None = None
     app_factory_args: list[object] = Field(default_factory=list)
 

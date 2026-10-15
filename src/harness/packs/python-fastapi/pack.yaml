@@ -36,6 +36,9 @@ commands:
 app_factory: "app.main:create_app"
 app_factory_args: ["sqlite://"]   # an in-memory database: nothing is written
 
+# Files running the stack leaves behind; never a real change (scope ignores them).
+artifacts: ["__pycache__/", "*.pyc", ".pytest_cache/", ".ruff_cache/", ".venv/"]
+
 # The project's test fixtures generated tests use.
 fixtures:
   client: client     # an HTTP test client for the app

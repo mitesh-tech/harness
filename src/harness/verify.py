@@ -10,6 +10,7 @@ import json
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Literal
 
@@ -90,7 +91,7 @@ def verify(report: Report, folder: Path, run: Runner = subprocess.run) -> Verifi
     ]
     if hasattr(design, "verify"):
         checks += design.verify(spec, Tools(project, pack, run))
-    checks.append(_scope(report, project, generation, run))
+    checks.append(_scope(report, project, generation, pack, run))
     checks.append(_untouched(report, project))
     warnings = [
         f"{name} passed before the code existed: it tests nothing" for name in generation.red.passed
@@ -163,7 +164,17 @@ def _tool_missing(output: str) -> bool:
     return any(sign in output for sign in signs)
 
 
-def _scope(report: Report, project: Path, generation: Generation, run: Runner) -> Check:
+def _artifact(path: str, pack: Pack) -> bool:
+    """A file running the stack leaves behind (a cache, a compiled file)."""
+    for pattern in pack.manifest.artifacts:
+        if pattern.endswith("/") and f"/{pattern}" in f"/{path}":
+            return True
+        if not pattern.endswith("/") and fnmatch(Path(path).name, pattern):
+            return True
+    return False
+
+
+def _scope(report: Report, project: Path, generation: Generation, pack: Pack, run: Runner) -> Check:
     """Only the planned files changed: generated ones, marker blocks, the registry."""
     knowledge = report.settings.knowledge
     planned = set(generation.written) | set(generation.registration) | {f"{knowledge}/{REGISTRY}"}
@@ -178,7 +189,7 @@ def _scope(report: Report, project: Path, generation: Generation, run: Runner) -
         )
     changed = git(project, ["diff", "--name-only", "--relative", generation.base], run)
     untracked = git(project, ["ls-files", "--others", "--exclude-standard"], run)
-    files = {f for f in (changed + untracked).splitlines() if f}
+    files = {f for f in (changed + untracked).splitlines() if f and not _artifact(f, pack)}
     unplanned = sorted(files - planned)
     if unplanned:
         return Check("scope", "fail", "files changed that the spec didn't plan", unplanned)

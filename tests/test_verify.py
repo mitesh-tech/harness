@@ -14,7 +14,7 @@ from harness.knowledge.validate import validate_project
 from harness.packs import installed_packs
 from harness.resolve import confirm, factory_design, resolve_service
 from harness.semif.http import SemIfHttp
-from harness.verify import Tools, _lint, verify
+from harness.verify import Tools, _artifact, _lint, verify
 
 runner = CliRunner()
 
@@ -260,3 +260,10 @@ def test_run_approve_refuses_open_questions(tmp_path, replayed):
     assert result.exit_code == 2
     assert "open question: Does the task list Publishers filtered by their name?" in result.output
     assert "Not confirmed: the spec has open points" in result.output
+
+
+def test_stack_leftovers_are_not_changes():
+    pack = installed_packs()["python-fastapi"]
+    assert _artifact("app/__pycache__/db.cpython-312.pyc", pack)
+    assert _artifact(".pytest_cache/v/cache/nodeids", pack)
+    assert not _artifact("app/api/add_review.py", pack)
