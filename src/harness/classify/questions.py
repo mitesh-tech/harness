@@ -1,74 +1,127 @@
-"""Options for each classification question, taken from the knowledge base.
+"""Options for each classification step, taken from the knowledge base.
 
 Each option source is named in technical.yaml (`classification › steps › … › options`).
-Sources can use earlier answers, e.g. the services offered depend on the chosen area.
+Sources use earlier answers: the kinds offered depend on the chosen operation
+and target, the services on the target and kind. Which kinds an operation
+offers for a target is a Prolog rule (`offered_kind/4` in core.pl).
 """
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from harness.knowledge.schema import Domain, Technical
+from harness.logic.compile import atom, snake
+from harness.logic.engine import Engine
 from harness.semif.client import Option
 
 Answers = dict[str, str]
-Source = Callable[[Domain, Technical, Answers], list[Option]]
 
 
-def area_of_service(domain: Domain, service) -> str | None:
-    entity_name = service.acts_on
-    if entity_name is None and service.association in domain.associations:
-        entity_name = domain.associations[service.association].parent
-    entity = domain.entities.get(entity_name) if entity_name else None
-    return entity.area if entity else None
+@dataclass
+class Context:
+    domain: Domain
+    technical: Technical
+    engine: Engine
+
+    def target_atom(self, target: str) -> str:
+        """Entities are lowercase in Prolog (Book -> book); association names already are."""
+        return atom(snake(target) if target in self.domain.entities else target)
 
 
-def areas(domain: Domain, technical: Technical, answers: Answers) -> list[Option]:
-    return [Option(name, area.description) for name, area in domain.areas.items()]
+Source = Callable[[Context, Answers], list[Option]]
 
 
-def services_in_area(domain: Domain, technical: Technical, answers: Answers) -> list[Option]:
+def connection_text(domain: Domain, name: str) -> str:
+    a = domain.associations[name]
+    generated = f"Relationship between {a.parent} and {a.child}"
+    return f"{a.description} ({generated})" if a.description else generated
+
+
+def entity_text(entity) -> str:
+    """An entity's description plus the details it keeps and its stages, from domain.yaml."""
+    text = entity.description.rstrip(".") + "."
+    details = [
+        name
+        for name, a in entity.attributes.items()
+        if name != entity.identifier and not a.generated
+    ]
+    if details:
+        text += f" Keeps: {', '.join(details)}."
+    if entity.lifecycle:
+        text += f" Stages: {', '.join(sorted(entity.lifecycle.states))}."
+    return text
+
+
+def targets(ctx: Context, answers: Answers) -> list[Option]:
+    d = ctx.domain
+    entities = [Option(name, entity_text(e)) for name, e in d.entities.items()]
+    connections = [
+        Option(name, connection_text(d, name))
+        for name, a in d.associations.items()
+        if a.kind == "aggregation"
+    ]
+    return entities + connections
+
+
+def target_parent(ctx: Context, answers: Answers) -> list[Option]:
+    target = answers["target"]
     return [
-        Option(name, s.description, tuple(s.examples), s.not_)
-        for name, s in domain.services.items()
-        if area_of_service(domain, s) == answers["area"]
+        Option(
+            a.parent,
+            ctx.domain.entities[a.parent].description,
+            reason=f"{target} is part of a {a.parent} (composition {name})",
+        )
+        for name, a in ctx.domain.associations.items()
+        if a.kind == "composition" and a.child == target
     ]
 
 
-def kinds(domain: Domain, technical: Technical, answers: Answers) -> list[Option]:
+def operations(ctx: Context, answers: Answers) -> list[Option]:
     return [
-        Option(name, k.description, tuple(k.examples), k.not_)
-        for name, k in technical.kinds.items()
+        Option(name, o.description, tuple(o.examples), o.not_)
+        for name, o in ctx.technical.operations.items()
     ]
 
 
-def entities_in_area(domain: Domain, technical: Technical, answers: Answers) -> list[Option]:
-    return [
-        Option(name, e.description)
-        for name, e in domain.entities.items()
-        if e.area == answers["area"]
-    ]
+REASONS = {
+    "target_type": "the only kind of {operation} that works on {target}",
+    "has_lifecycle": "{target} has a lifecycle",
+}
 
 
-def aggregations_in_area(domain: Domain, technical: Technical, answers: Answers) -> list[Option]:
+def offered_kinds(ctx: Context, answers: Answers) -> list[Option]:
+    operation, target = answers["operation"], answers["target"]
+    found = ctx.engine.query(f"offered_kind({atom(operation)}, {ctx.target_atom(target)}, K, Why)")
+    why = {a["K"]: a["Why"] for a in found}
     options = []
-    for name, a in domain.associations.items():
-        parent, child = domain.entities.get(a.parent), domain.entities.get(a.child)
-        if a.kind != "aggregation" or parent is None or child is None:
-            continue
-        if parent.area == answers["area"]:
-            options.append(
-                Option(
-                    name,
-                    f"Connects a {a.parent} ({parent.description}) with a {a.child} "
-                    f"({child.description})",
-                )
-            )
+    for name in ctx.technical.operations[operation].kinds:  # keep the operation's order
+        if name in why:
+            k = ctx.technical.kinds[name]
+            reason = REASONS.get(why[name], why[name]).format(operation=operation, target=target)
+            options.append(Option(name, k.description, tuple(k.examples), k.not_, reason))
     return options
 
 
+def services_for_target_kind(ctx: Context, answers: Answers) -> list[Option]:
+    target, kind = answers["target"], answers["kind"]
+    return [
+        Option(name, s.description, tuple(s.examples), s.not_)
+        for name, s in ctx.domain.services.items()
+        if s.kind == kind and target in (s.acts_on, s.association)
+    ]
+
+
 OPTION_SOURCES: dict[str, Source] = {
-    "areas": areas,
-    "services_in_area": services_in_area,
-    "kinds": kinds,
-    "entities_in_area": entities_in_area,
-    "aggregations_in_area": aggregations_in_area,
+    "targets": targets,
+    "target_parent": target_parent,
+    "operations": operations,
+    "offered_kinds": offered_kinds,
+    "services_for_target_kind": services_for_target_kind,
+}
+
+# Why a step had nothing to choose from; recorded in the trace.
+EMPTY = {
+    "target_parent": "{target} is not part of another thing",
+    "offered_kinds": "no kind of {operation} works on {target}",
+    "services_for_target_kind": "no service acts on {target} with kind {kind}",
 }

@@ -34,8 +34,8 @@ def engine(bookstore) -> Engine:
         ("create", "collection_books", ["link"]),
         ("read", "book", ["query", "read_one"]),
         ("read", "collection_books", []),
-        ("update", "book", ["replace", "transition", "update"]),
-        ("update", "review", ["replace", "update"]),  # no lifecycle, so no transition
+        ("update", "book", ["change", "replace", "transition"]),
+        ("update", "review", ["change", "replace"]),  # no lifecycle, so no transition
         ("update", "book_publisher", []),
         ("delete", "review", ["delete"]),
         ("delete", "collection_books", ["unlink"]),
@@ -50,7 +50,7 @@ def test_offered_kinds(engine, operation, target, kinds):
 def test_offered_kinds_carry_a_reason(engine):
     answers = engine.query("offered_kind(update, book, K, Why)")
     assert {a["K"]: a["Why"] for a in answers} == {
-        "update": "target_type",
+        "change": "target_type",
         "replace": "target_type",
         "transition": "has_lifecycle",
     }

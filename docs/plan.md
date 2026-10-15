@@ -31,10 +31,12 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | Knowledge files, schemas, `harness validate` (syntax, shape, references) | Done |
 | Prolog engine, logic checks, `harness kb export` / `kb query` | Done |
 | SemIf over HTTP (Qwen3.5-4B on MLX), `harness semif check`, recorded tests | Done |
-| Classification (area → service flow, configuration-driven) | Done; replaced in S2c by the factory flow |
+| Classification (area → service flow, configuration-driven) | Replaced in S2c by the factory flow |
 | Factory structure (S1) | Done |
 | Operations and targets (S2a) | Done |
-| Traces, router, data layer, resolve, spec, generation, verification, learning | Planned below |
+| Traces and eval cases (S2b) | Done |
+| Classification with the factory router, CRUD flow, planned domain-model factory (S2c) | Done |
+| Data layer, resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages
 
@@ -46,19 +48,19 @@ Each stage is one or two pull requests, ends with something you can run, and sta
 | **S1: Factory structure** | `src/harness/factories/crud-api/` with `factory.yaml`, factory loader; `technical.yaml` and the composition checks moved into the factory; per-factory project overrides; `validate` covers factories | `harness validate` |
 | **S2a: CRUD knowledge** | **Operation layer** (create, read, update, delete → kinds); **targets**: entities and connections (aggregations); `offered_kind/4` in Prolog (kind by target, transition only with a lifecycle); operation checks | `harness kb query "offered_kind(update, book, K, Why)"` |
 | **S2b: Traces and eval cases** | A **trace** of every decision (step, by SemIf or rule, options, answer, confidence, margin, time); eval cases that check the **path**, questions not asked, number of SemIf calls and paraphrase groups; the first wrong step is reported | `harness classify "…" --trace` |
-| **S2c: Classification** | **Factory router**; target first (entity or connection); new API or change; operation → kind (by rule when only one) → lookup → SemIf confirms; outcomes `UNSUPPORTED`, `NO_ENTITY`, `NEW_SERVICE`, `MATCHED`, `CHANGE_API`, `UNSURE`; kind `update` renamed `change`; SemIf answers re-recorded | `harness classify "…"` |
+| **S2c: Classification** | **Factory router** (a gate while there is one factory); target first (entity or connection); parent by rule; operation → kind (by rule when only one) → lookup → SemIf confirms; questions in domain language with the target's context; outcomes `UNSUPPORTED`, `NO_ENTITY`, `NEW_SERVICE`, `MATCHED`, `UNSURE`; kind `update` renamed `change`; SemIf answers re-recorded | `harness classify "…"` |
 | **S3: Data layer** | `.harness/data.yaml` (sources, conventions, mappings); **relational** source plugin (schema, capabilities, optional introspection); mapping checks; `NO_MAPPING` | `harness validate --introspect` |
 | **S4: Resolve and spec** | **API anatomy rules** in Prolog (request body, path and query parameters, response, statuses), data mapping, askable yes/no questions to SemIf, sources for every value, open questions; **dependents and delete policy** (`dependent/2` through compositions and references, `on_delete`: cascade, restrict or set_null); `spec.yaml` + `openapi.yaml`; resolve decisions in the trace | `harness resolve "…"` |
 | **S5: Confirm, generate, verify, report (create)** | Confirm the spec (approve, edit and re-check, reject); FastAPI templates (route, schemas, repository interface, relational adapter, tests); router registration; git worktree; verification against the spec; report | `harness run "Let staff add a new publisher"` |
 | **S6: All CRUD kinds** | read one, list (filters are response fields, paging), update, replace, transition (guarded by the lifecycle), delete; link and unlink for connections; nested APIs for composition | `harness run` for any CRUD task |
-| **S7: Change existing APIs** | Add or remove an attribute: impact analysis (including dependents), then domain, mapping, schemas and tests updated together | `harness run "Add an isbn field to books"` |
+| **S7: Domain-model factory** | Its manifest is already installed as planned (`available: false`), so the router sends domain changes there instead of to CRUD. A second factory for changes to the domain itself: add or remove an attribute, add an entity or a relationship. Drafts the domain change for your approval; impact analysis (including dependents); then the CRUD factory updates mapping, schemas, APIs and tests together | `harness run "Add an isbn field to books"` |
 | **S8: Learn and evals** | New services and attributes saved to the knowledge base after approval; eval cases; `harness eval` over traces: accuracy per step, path accuracy, calibration, consistency across paraphrases, SemIf calls and time | Track classification accuracy and behaviour |
 
 ## Phase 2 and later
 
 | Item | Notes |
 |---|---|
-| **Domain-model factory** | LLM-guided design of new entities: asks the right questions, considers the existing domain model, drafts YAML for your approval |
+| **Domain-model factory, extended** | LLM-guided design of larger domain changes: asks the right questions, considers the existing domain model, drafts YAML for your approval |
 | Trace export | Send traces to tools such as Langfuse or Inspect AI |
 | More data sources | REST APIs of other services, document stores |
 | Agent-driven runs | Claude Code, Codex, Copilot skills that drive the same spec-based flow |

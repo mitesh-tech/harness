@@ -1,14 +1,17 @@
 # yaml-language-server: $schema=../../../../schemas/factory.schema.json
 #
 # The CRUD API factory: builds REST APIs that create, read, update and
-# delete the records of an entity. See docs/factories/crud-api.md.
+# delete the domain entities of a business. See docs/factories/crud-api.md.
+#
+# The description and examples are what the factory router (SemIf) reads;
+# keep the examples general, since every project shares this factory.
 name: crud-api
-description: "Create, read, update and delete records of an entity through a REST API"
+description: "Create, read, update and delete the domain entities of a business through a REST API, changing their state"
 examples:
-  - "Add a new book"
-  - "List books by author"
-  - "Change a book's price"
-  - "Remove a review"
+  - "Add a new customer"
+  - "List orders placed this week"
+  - "Change a product's price"
+  - "Remove a cancelled order"
 technical: technical.yaml
 checks: checks.pl
 packs: [python-fastapi]

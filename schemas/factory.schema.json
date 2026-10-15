@@ -21,6 +21,11 @@
       "title": "Examples",
       "type": "array"
     },
+    "available": {
+      "default": true,
+      "title": "Available",
+      "type": "boolean"
+    },
     "technical": {
       "default": "technical.yaml",
       "minLength": 1,
@@ -38,7 +43,6 @@
         "pattern": "^[a-z][a-z0-9-]*$",
         "type": "string"
       },
-      "minItems": 1,
       "title": "Packs",
       "type": "array"
     }
@@ -46,8 +50,7 @@
   "required": [
     "name",
     "description",
-    "examples",
-    "packs"
+    "examples"
   ],
   "title": "FactoryManifest",
   "type": "object"

@@ -4,7 +4,11 @@
 # SemIf reads the words (descriptions, examples, "not" hints);
 # the Prolog engine reads the structured facts.
 
-# ── Areas: the first question SemIf answers ("which area?") ─────────
+# What the business is, in a few words; don't list entities here. Questions
+# to SemIf start with it ({system}); the harness adds the entities itself.
+description: "an online bookstore"
+
+# ── Areas: groups of entities ────────────────────────────────────────
 areas:
   catalogue:
     description: "Books for sale: adding, finding, changing and retiring books, and who publishes them"
@@ -81,7 +85,7 @@ associations:
     child: Book
     cardinality: one_to_many
 
-# ── Services: the second question SemIf answers ("which service?") ──
+# ── Services: existing APIs, offered when SemIf confirms a lookup ───
 services:
   # catalogue
   add_book:
@@ -107,7 +111,7 @@ services:
     description: "Change the price of an existing book"
     examples: ["Update a book's price", "Put a book on sale"]
     not: "Not for replacing all of a book's details (use replace_book)"
-    kind: update
+    kind: change
     acts_on: Book
     changes: [price]
 

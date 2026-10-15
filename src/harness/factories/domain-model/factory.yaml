@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../../../schemas/factory.schema.json
+#
+# The domain-model factory: changes the domain itself (entities, the details
+# they keep, relationships). Planned for S7; the router offers it already,
+# so a domain change ends as unsupported with a clear reason instead of
+# being mistaken for CRUD. See docs/plan.md.
+name: domain-model
+description: "Change the structure of the domain model: add or remove an entity, a field of an entity, or a relationship between entities"
+examples:
+  - "Add a barcode field to products"
+  - "We need to keep customers' birthdays"
+  - "Stop storing the fax number of suppliers"
+  - "Add a supplier entity with a name and an address"
+available: false
