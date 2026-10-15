@@ -176,8 +176,11 @@ def test_generates_into_a_worktree_on_its_own_branch(tmp_path):
     repo = copy_bookstore(tmp_path / "shop")
     for command in (
         ["git", "init", "-q", "-b", "main"],
+        # CI machines have no git identity; a real project always has one
+        ["git", "config", "user.email", "test@example.com"],
+        ["git", "config", "user.name", "Test"],
         ["git", "add", "-A"],
-        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "start"],
+        ["git", "commit", "-q", "-m", "start"],
     ):
         subprocess.run(command, cwd=repo, check=True)
     folder = confirmed_run(repo, "add_review")

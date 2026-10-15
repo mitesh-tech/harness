@@ -161,7 +161,13 @@ def _workspace(report: Report, run_id: str, spec: dict, in_place: bool, run: Run
 def _git(cwd: Path, args: list[str], run: Runner) -> str:
     done = run(["git", *args], cwd=cwd, capture_output=True, text=True)
     if done.returncode != 0:
-        raise GenerateError(f"git {' '.join(args)} failed: {done.stderr.strip()}")
+        hint = ""
+        if "Author identity unknown" in done.stderr:
+            hint = (
+                "\nSet who commits with `git config user.name …` and `git config user.email …`, "
+                "or generate with --in-place."
+            )
+        raise GenerateError(f"git {' '.join(args)} failed: {done.stderr.strip()}{hint}")
     return done.stdout
 
 
