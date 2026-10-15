@@ -14,5 +14,6 @@ examples:
   - "Remove a cancelled order"
 technical: technical.yaml
 rules: anatomy.pl
+design: design.py
 checks: checks.pl
 packs: [python-fastapi]

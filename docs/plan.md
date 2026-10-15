@@ -38,6 +38,7 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | Classification with the factory router, CRUD flow, planned domain-model factory (S2c) | Done |
 | Data layer (S3) | Done |
 | API anatomy (S4a) | Done |
+| Spec and OpenAPI in the run folder (S4b) | Done |
 | Resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages
@@ -82,10 +83,10 @@ harness/
 │   ├── semif/           # decision-model interface and HTTP adapter
 │   ├── classify/        # generic flow runner, option sources, lookups
 │   ├── factories/
-│   │   └── crud-api/    # factory.yaml, technical.yaml, checks.pl, templates/, evals/
+│   │   └── crud-api/    # factory.yaml, technical.yaml, anatomy.pl, checks.pl, design.py, templates/
 │   ├── datasources/
 │   │   └── relational/  # source.yaml, schema, introspect, templates/
-│   ├── resolve/         # the API design of a service; spec writing (S4b)
+│   ├── resolve.py       # classify → the factory's design → save the run folder
 │   ├── run/             # confirm, worktree, orchestration
 │   ├── verify/          # checks against the spec
 │   └── report/          # run reports

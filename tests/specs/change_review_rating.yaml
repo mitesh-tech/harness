@@ -1,0 +1,92 @@
+task: Readers should be able to change their rating of a book through a new endpoint
+factory: crud-api
+status: draft
+service:
+  name: change_review_rating
+  new: true
+kind: change
+target: Review
+parent: Book
+details:
+  changes:
+  - rating
+api:
+  method: PATCH
+  path: /books/{book_id}/reviews/{review_id}
+  path_params:
+    book_id:
+      type: id
+      refers_to: Book
+    review_id:
+      type: id
+      refers_to: Review
+  request:
+    fields:
+      rating:
+        type: integer
+        required: false
+        min: 1
+        max: 5
+  response:
+    status: 200
+    shape: item
+    fields:
+      id:
+        type: id
+        generated: true
+      rating:
+        type: integer
+        required: true
+        min: 1
+        max: 5
+      comment:
+        type: text
+  errors:
+  - status: 404
+    when: no Book has this book_id
+    rule: not-found
+  - status: 404
+    when: no Review has this review_id
+    rule: not-found
+  - status: 422
+    when: invalid or missing fields
+    rule: invalid-body
+data:
+  source: bookstore_db
+  type: relational
+  table: reviews
+  columns:
+    id: id
+    rating: rating
+    comment: comment
+  operation: update_row
+  parent_key: book_id
+components:
+- name: serialization
+  rule: always-serialize
+- name: partial_validation
+  rule: update-validates-changes
+- name: not_found_handling
+  rule: identifier-in-path
+- name: parent_exists_check
+  rule: composition-nested
+tests:
+- changes a Review → 200
+- no Book has this book_id → 404
+- no Review has this review_id → 404
+- invalid or missing fields → 422
+open_questions:
+- Does the task change the comment of a Review? (SemIf 0.32)
+sources:
+  api.method: kind change
+  api.path: rule item-path
+  api.path_params.book_id: rule identifier-in-path
+  api.path_params.review_id: rule identifier-in-path
+  api.request.fields.rating: rule change-body; details from domain.yaml Review.rating
+  api.response.status: kind change
+  api.response.shape: rule item-response
+  api.response.fields: rule item-response
+  data: data.yaml
+  tests: 'derived from the design: one success case, one per error'
+  service.name: 'rule: kind change names services change_{entity}_{attribute}'
+  details: SemIf yes/no questions about the task

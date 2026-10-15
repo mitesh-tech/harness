@@ -1,0 +1,64 @@
+task: List publishers by name through a new endpoint
+factory: crud-api
+status: draft
+service:
+  name: list_publishers
+  new: true
+kind: query
+target: Publisher
+api:
+  method: GET
+  path: /publishers
+  query_params:
+    page:
+      type: integer
+      default: 1
+      min: 1
+    size:
+      type: integer
+      default: 20
+      min: 1
+      max: 100
+  response:
+    status: 200
+    shape: list
+    fields:
+      id:
+        type: id
+        generated: true
+      name:
+        type: text
+        required: true
+        unique: true
+    includes:
+    - items
+    - paging
+    - applied_filters
+data:
+  source: bookstore_db
+  type: relational
+  table: publishers
+  columns:
+    id: id
+    name: name
+  operation: select_many
+components:
+- name: serialization
+  rule: always-serialize
+- name: pagination
+  rule: lists-are-paged
+tests:
+- lists Publishers → 200
+open_questions:
+- Does the task list Publishers filtered by their name? (SemIf 0.78)
+sources:
+  api.method: kind query
+  api.path: rule collection-path
+  api.query_params.page: rule lists-are-paged
+  api.query_params.size: rule lists-are-paged
+  api.response.status: kind query
+  api.response.shape: rule list-response
+  api.response.fields: rule list-summary
+  data: data.yaml
+  tests: 'derived from the design: one success case, one per error'
+  service.name: 'rule: kind query names services list_{entities}'

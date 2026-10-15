@@ -185,53 +185,57 @@ Phase 1 has one type, **relational** (SQLite, PostgreSQL, MySQL). Its **capabili
 
 ## The spec
 
-Every run produces a spec before any code is written. Example:
+`harness resolve` saves every design in a run folder, before any code is written:
 
-```yaml
-# .harness/runs/0007/spec.yaml
-service: add_publisher                     # new, named by rule create → add_{entity}
-factory: crud-api
-task: "Let staff add a new publisher"
-status: draft                              # confirmed after your approval
-
-api:
-  method: POST
-  path: /publishers
-  request:
-    body: Publisher
-    fields:
-      name: { type: text, required: true, unique: true }   # id is generated
-  response:
-    status: 201
-    body: Publisher
-    headers: [Location]
-  errors:
-    - { status: 409, when: "a publisher with this name already exists" }
-    - { status: 422, when: "invalid or missing fields" }
-
-data:
-  source: main (relational)
-  table: publishers
-  fields: { id: id, name: name }
-
-components:
-  - { name: body_validation, rule: create-validates-body }
-  - { name: serialization, rule: always-serialize }
-
-tests:
-  - creates a publisher → 201 and Location
-  - missing name → 422
-  - duplicate name → 409
-
-open_questions: []
-sources:
-  entity: SemIf 0.99
-  operation: SemIf 1.00
-  method, status: kind create
-  fields: entity Publisher
+```
+.harness/runs/<run id>/
+├── spec.yaml      the design, for you to read and confirm (S5)
+├── openapi.yaml   the same API as OpenAPI 3.1, generated from the spec only
+└── trace.jsonl    every decision, from classification to design
 ```
 
-The API contract is also written as `openapi.yaml`. Generation can be re-run from a confirmed spec without classifying again.
+The run folders ignore themselves (`runs/.gitignore`). Who makes what:
+
+| File | Content from | Code |
+|---|---|---|
+| `spec.yaml` | the factory's design (API, data, delete effects, tests, sources) and the platform's cover sheet (run, task, factory, status, open questions) | `factories/crud-api/design.py`, `harness/resolve.py` |
+| `openapi.yaml` | the spec only | `factories/crud-api/design.py › to_openapi` |
+
+A real example: [tests/specs/change_review_rating.yaml](../../tests/specs/change_review_rating.yaml) for *"Readers should be able to change their rating of a book through a new endpoint"*:
+
+```yaml
+task: Readers should be able to change their rating of a book through a new endpoint
+factory: crud-api
+status: draft                       # S5: confirmed, edited or rejected by you
+service: { name: change_review_rating, new: true }
+kind: change
+target: Review
+parent: Book
+details:
+  changes: [rating]                 # SemIf: rating yes
+api:
+  method: PATCH
+  path: /books/{book_id}/reviews/{review_id}
+  request: { fields: { rating: { type: integer, required: false, min: 1, max: 5 } } }
+  response: { status: 200, shape: item, … }
+  errors: [ 404 no Book…, 404 no Review…, 422 invalid… ]
+data: { source: bookstore_db, table: reviews, parent_key: book_id, operation: update_row, … }
+tests:
+- changes a Review → 200
+- no Book has this book_id → 404
+- …
+open_questions:
+- Does the task change the comment of a Review? (SemIf 0.32)
+sources:
+  service.name: 'rule: kind change names services change_{entity}_{attribute}'
+  details: SemIf yes/no questions about the task
+  api.path: rule item-path
+  …
+```
+
+**New services:** SemIf answers yes/no per candidate (attributes a change touches, filters a list has) and chooses a lifecycle move; yes at 0.8 or more, no at 0.2 or less, otherwise an open question. A new service is named by its kind's rule when every part is known; otherwise the name is an open question (a transition's verb shows as `<verb>` in its path until answered).
+
+**`tests`** are derived from the design (one success case, one per error, one per delete effect); S5 verifies the generated code against them. **`openapi.yaml`** adds nothing to the spec: it is the same API in the format tools read.
 
 ## Design decisions
 

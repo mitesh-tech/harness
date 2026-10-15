@@ -28,6 +28,7 @@ relational = [
 [dependency-groups]
 dev = [
   "janus-swi>=1.5",
+  "openapi-spec-validator>=0.7",
   "pytest>=8",
   "sqlalchemy>=2.0",
   "ruff>=0.6",

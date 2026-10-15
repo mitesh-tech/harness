@@ -78,6 +78,7 @@ class FactoryManifest(Model):
     available: StrictBool = True
     technical: Text = "technical.yaml"
     rules: Text | None = None  # Prolog decision rules of this factory, e.g. anatomy.pl
+    design: Text | None = None  # Python code that designs a task's output, e.g. design.py
     checks: Text = "checks.pl"
     packs: list[KebabName] = Field(default_factory=list)
 

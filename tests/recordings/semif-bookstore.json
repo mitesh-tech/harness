@@ -312,6 +312,43 @@
         }
       }
     },
+    "129f266cbf0fe796": {
+      "request": {
+        "state": "List publishers by name through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "factory": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. The business keeps these domain entities: Book, Publisher, Review, Collection. Which kind of software work does the task need?",
+            "criteria": {
+              "crud-api": "Create, read, update and delete the domain entities of a business through a REST API, changing their state. Examples: Add a new customer; List orders placed this week; Change a product's price; Remove a cancelled order.",
+              "domain-model": "Change the structure of the domain model: add or remove an entity, a field of an entity, or a relationship between entities. Examples: Add a barcode field to products; We need to keep customers' birthdays; Stop storing the fax number of suppliers; Add a supplier entity with a name and an address.",
+              "none": "None: the task needs a kind of software work that is not listed."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "factory": {
+            "type": "choice",
+            "choice": "crud-api",
+            "probabilities": {
+              "crud-api": 0.9651523183941094,
+              "domain-model": 0.022698206936330647,
+              "none": 0.012149474669559996
+            },
+            "confidence": 0.9477284775911641
+          }
+        },
+        "usage": {
+          "input_tokens": 265,
+          "output_tokens": 0
+        }
+      }
+    },
     "18124954e762f30c": {
       "request": {
         "state": "Change a book's price through an endpoint",
@@ -507,6 +544,47 @@
             "video_preprocessor_config.json": "7768af27c1fafa9cc9011c1dc20067e03f8915e03b63504550e11d5066986d13",
             "vocab.json": "ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003"
           }
+        }
+      }
+    },
+    "28325c4b92651d1c": {
+      "request": {
+        "state": "List publishers by name through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "operation": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. It is about Publisher: A company that publishes books. A Publisher keeps: name (text). What does the task do with a Publisher?",
+            "criteria": {
+              "create": "Make a new Publisher. Examples: add; create; register; put into; set the.",
+              "read": "Look at Publishers without changing them. Examples: view; show; list; search; find.",
+              "update": "Change a Publisher that already exists. Examples: edit; change; correct; replace; archive; approve.",
+              "delete": "Remove a Publisher. Examples: delete; remove; take out of.",
+              "none": "None: the task does something else with a Publisher."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "operation": {
+            "type": "choice",
+            "choice": "read",
+            "probabilities": {
+              "create": 0.015774559026737547,
+              "read": 0.9759374088748676,
+              "update": 0.0006116460301564882,
+              "delete": 0.00022501199976870001,
+              "none": 0.007451374068469672
+            },
+            "confidence": 0.9699217610935844
+          }
+        },
+        "usage": {
+          "input_tokens": 253,
+          "output_tokens": 0
         }
       }
     },
@@ -916,6 +994,43 @@
         }
       }
     },
+    "46244467dd675708": {
+      "request": {
+        "state": "Put an archived book back on sale through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "move": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. Which move through its stages does the task make for a Book?",
+            "criteria": {
+              "active_to_archived": "From active to archived.",
+              "archived_to_active": "From archived to active.",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "move": {
+            "type": "choice",
+            "choice": "archived_to_active",
+            "probabilities": {
+              "active_to_archived": 0.0013249859801478148,
+              "archived_to_active": 0.9986475148131423,
+              "none": 2.7499206709902967e-05
+            },
+            "confidence": 0.9979712722197134
+          }
+        },
+        "usage": {
+          "input_tokens": 156,
+          "output_tokens": 0
+        }
+      }
+    },
     "4f0f982449bc8dad": {
       "request": {
         "state": "Hello there.",
@@ -975,6 +1090,43 @@
         },
         "usage": {
           "input_tokens": 266,
+          "output_tokens": 0
+        }
+      }
+    },
+    "615de00adf1c8a6f": {
+      "request": {
+        "state": "Readers should be able to change their rating of a book through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "factory": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. The business keeps these domain entities: Book, Publisher, Review, Collection. Which kind of software work does the task need?",
+            "criteria": {
+              "crud-api": "Create, read, update and delete the domain entities of a business through a REST API, changing their state. Examples: Add a new customer; List orders placed this week; Change a product's price; Remove a cancelled order.",
+              "domain-model": "Change the structure of the domain model: add or remove an entity, a field of an entity, or a relationship between entities. Examples: Add a barcode field to products; We need to keep customers' birthdays; Stop storing the fax number of suppliers; Add a supplier entity with a name and an address.",
+              "none": "None: the task needs a kind of software work that is not listed."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "factory": {
+            "type": "choice",
+            "choice": "crud-api",
+            "probabilities": {
+              "crud-api": 0.9988031644992694,
+              "domain-model": 0.0007093244269222726,
+              "none": 0.00048751107380822845
+            },
+            "confidence": 0.9982047467489041
+          }
+        },
+        "usage": {
+          "input_tokens": 273,
           "output_tokens": 0
         }
       }
@@ -1422,6 +1574,47 @@
         }
       }
     },
+    "8c09f5abf15e2475": {
+      "request": {
+        "state": "Readers should be able to change their rating of a book through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "operation": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. It is about Review: A reader's rating and comment about one book. A Review is part of a Book. A Review keeps: rating (integer, 1 to 5), comment (text). What does the task do with a Review?",
+            "criteria": {
+              "create": "Make a new Review. Examples: add; create; register; put into; set the.",
+              "read": "Look at Reviews without changing them. Examples: view; show; list; search; find.",
+              "update": "Change a Review that already exists. Examples: edit; change; correct; replace; archive; approve.",
+              "delete": "Remove a Review. Examples: delete; remove; take out of.",
+              "none": "None: the task does something else with a Review."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "operation": {
+            "type": "choice",
+            "choice": "update",
+            "probabilities": {
+              "create": 0.008521888741617707,
+              "read": 0.00042427985740225077,
+              "update": 0.9849964130201782,
+              "delete": 0.0002004156136385505,
+              "none": 0.005857002767163339
+            },
+            "confidence": 0.9812455162752227
+          }
+        },
+        "usage": {
+          "input_tokens": 283,
+          "output_tokens": 0
+        }
+      }
+    },
     "8c4e6fdcb080fe2b": {
       "request": {
         "state": "Stop storing comments on reviews",
@@ -1455,6 +1648,43 @@
         },
         "usage": {
           "input_tokens": 262,
+          "output_tokens": 0
+        }
+      }
+    },
+    "8d38473dd4c97a22": {
+      "request": {
+        "state": "List publishers by name through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "kind": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. It is about Publisher: A company that publishes books. A Publisher keeps: name (text). Is the task about one specific Publisher, or a list of Publishers?",
+            "criteria": {
+              "read_one": "Look at one specific Publisher. Examples: view; show; open; get details of.",
+              "query": "Find or list several Publishers. Examples: list; search; show all; browse; filter.",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "kind": {
+            "type": "choice",
+            "choice": "query",
+            "probabilities": {
+              "read_one": 0.001926525252090963,
+              "query": 0.9979647876305294,
+              "none": 0.00010868711737951359
+            },
+            "confidence": 0.9969471814457942
+          }
+        },
+        "usage": {
+          "input_tokens": 195,
           "output_tokens": 0
         }
       }
@@ -1541,6 +1771,32 @@
         }
       }
     },
+    "9adb81cda8281a2a": {
+      "request": {
+        "state": "Readers should be able to change their rating of a book through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "changes_comment": {
+            "type": "noul",
+            "instructions": "This task is for an online bookstore. Does the task change the comment of a Review?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "changes_comment": {
+            "type": "noul",
+            "noul": 0.32082130082460697
+          }
+        },
+        "usage": {
+          "input_tokens": 130,
+          "output_tokens": 0
+        }
+      }
+    },
     "9e4bb98d926486c6": {
       "request": {
         "state": "Add a new book through an endpoint",
@@ -1611,6 +1867,51 @@
         },
         "usage": {
           "input_tokens": 218,
+          "output_tokens": 0
+        }
+      }
+    },
+    "a385ac6c17ded7d1": {
+      "request": {
+        "state": "List publishers by name through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "target": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. Which domain entity is the task about, or which relationship between two domain entities?",
+            "criteria": {
+              "Book": "A book for sale in the store. Keeps: isbn, title, author, price. Stages: active, archived.",
+              "Publisher": "A company that publishes books. Keeps: name.",
+              "Review": "A reader's rating and comment about one book. Keeps: rating, comment.",
+              "Collection": "A named, curated list of books. Keeps: name.",
+              "collection_books": "Books placed in a curated collection (Relationship between Collection and Book).",
+              "book_publisher": "Which publisher publishes a book (Relationship between Publisher and Book).",
+              "none": "None: the task is about a domain entity that is not listed."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "target": {
+            "type": "choice",
+            "choice": "Publisher",
+            "probabilities": {
+              "Book": 0.0323502288620769,
+              "Publisher": 0.9454122686532324,
+              "Review": 0.0023434427187712797,
+              "Collection": 0.0014213698582151116,
+              "collection_books": 0.0030090400134541464,
+              "book_publisher": 0.004961068274569652,
+              "none": 0.010502581619680564
+            },
+            "confidence": 0.9363143134287711
+          }
+        },
+        "usage": {
+          "input_tokens": 287,
           "output_tokens": 0
         }
       }
@@ -1802,6 +2103,32 @@
         },
         "usage": {
           "input_tokens": 183,
+          "output_tokens": 0
+        }
+      }
+    },
+    "a91e5c447b376c3b": {
+      "request": {
+        "state": "List publishers by name through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "filters_name": {
+            "type": "noul",
+            "instructions": "This task is for an online bookstore. Does the task list Publishers filtered by their name?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "filters_name": {
+            "type": "noul",
+            "noul": 0.7772998611746911
+          }
+        },
+        "usage": {
+          "input_tokens": 122,
           "output_tokens": 0
         }
       }
@@ -2038,6 +2365,43 @@
         },
         "usage": {
           "input_tokens": 267,
+          "output_tokens": 0
+        }
+      }
+    },
+    "bc9c6553b274726f": {
+      "request": {
+        "state": "Readers should be able to change their rating of a book through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "kind": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. It is about Review: A reader's rating and comment about one book. A Review is part of a Book. A Review keeps: rating (integer, 1 to 5), comment (text). Does the task change a few details of a Review, replace all of its details, or move it to another stage of its life (like archive or approve)?",
+            "criteria": {
+              "change": "Change some details of a Review that exists. Examples: edit; change; correct; set the price. Not for replacing all details (use replace), and not for moving through a lifecycle (use transition)",
+              "replace": "Replace all the details of a Review that exists. Examples: replace; overwrite; re-enter all details of; save the full record of. Not for changing just a few details (use change), and not for moving through a lifecycle (use transition)",
+              "none": "None of the other options fits this task."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "kind": {
+            "type": "choice",
+            "choice": "change",
+            "probabilities": {
+              "change": 0.9949127772324283,
+              "replace": 0.0019206334859941387,
+              "none": 0.003166589281577473
+            },
+            "confidence": 0.9923691658486424
+          }
+        },
+        "usage": {
+          "input_tokens": 297,
           "output_tokens": 0
         }
       }
@@ -2282,6 +2646,51 @@
         },
         "usage": {
           "input_tokens": 265,
+          "output_tokens": 0
+        }
+      }
+    },
+    "d1118704e18c72ee": {
+      "request": {
+        "state": "Readers should be able to change their rating of a book through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "target": {
+            "type": "choice",
+            "instructions": "This task is for an online bookstore. Which domain entity is the task about, or which relationship between two domain entities?",
+            "criteria": {
+              "Book": "A book for sale in the store. Keeps: isbn, title, author, price. Stages: active, archived.",
+              "Publisher": "A company that publishes books. Keeps: name.",
+              "Review": "A reader's rating and comment about one book. Keeps: rating, comment.",
+              "Collection": "A named, curated list of books. Keeps: name.",
+              "collection_books": "Books placed in a curated collection (Relationship between Collection and Book).",
+              "book_publisher": "Which publisher publishes a book (Relationship between Publisher and Book).",
+              "none": "None: the task is about a domain entity that is not listed."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "target": {
+            "type": "choice",
+            "choice": "Review",
+            "probabilities": {
+              "Book": 0.05678082151082958,
+              "Publisher": 0.0036298764767471493,
+              "Review": 0.8882014889757005,
+              "Collection": 0.0013353569297871052,
+              "collection_books": 0.0036298764767471493,
+              "book_publisher": 0.002201631374116818,
+              "none": 0.04422094825607175
+            },
+            "confidence": 0.8695684038049839
+          }
+        },
+        "usage": {
+          "input_tokens": 295,
           "output_tokens": 0
         }
       }
@@ -2760,6 +3169,32 @@
         },
         "usage": {
           "input_tokens": 288,
+          "output_tokens": 0
+        }
+      }
+    },
+    "fe730f9b87aefdc6": {
+      "request": {
+        "state": "Readers should be able to change their rating of a book through a new endpoint",
+        "model": "semif",
+        "questions": {
+          "changes_rating": {
+            "type": "noul",
+            "instructions": "This task is for an online bookstore. Does the task change the rating of a Review?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "semif-direct-v1",
+        "answers": {
+          "changes_rating": {
+            "type": "noul",
+            "noul": 0.9579122720843811
+          }
+        },
+        "usage": {
+          "input_tokens": 130,
           "output_tokens": 0
         }
       }
