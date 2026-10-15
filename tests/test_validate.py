@@ -20,7 +20,7 @@ def only_error(report):
 def test_bookstore_is_valid():
     report = validate_project(BOOKSTORE)
     assert report.ok, messages(report)
-    assert [p.path for p in report.warnings] == [("pack",)]
+    assert report.warnings == []
     assert len(report.domain.services) == 13
     assert len(report.technical.kinds) == 9
 
@@ -245,3 +245,13 @@ def test_override_rule_with_unknown_component_points_at_override(project: Path):
     assert error.file == override
     assert error.path[:2] == ("rules", 0)
     assert error.line == 4
+
+
+def test_unknown_pack_is_a_warning(project: Path):
+    edit(project / "harness.yaml", "pack: python-fastapi", "pack: node-express")
+    report = validate_project(project)
+    assert report.ok
+    [warning] = report.warnings
+    assert warning.message.startswith(
+        "pack 'node-express' is not installed (installed: python-fastapi)"
+    )

@@ -83,7 +83,9 @@ def test_new_delete_shows_its_effects(report, model):
     run = resolve_task(report, "Delete a book through a new endpoint", model)
     effects = [(e["effect"], e["affects"]) for e in run.spec["delete_effects"]]
     assert effects == [("cascade", "Review"), ("remove_links", "collection_books")]
-    assert "after the delete: its Reviews are deleted with it" in run.spec["tests"]
+    [cascade] = [c for c in run.spec["tests"] if c["rule"] == "composition-cascade"]
+    assert cascade["name"] == "after the delete: its Reviews are deleted with it"
+    assert cascade["expect"] == {"status": 204, "gone": ["review"]}  # checked from S6
     check_expected("remove_book", run.spec)
 
 
@@ -127,7 +129,8 @@ def test_run_folder(report, project):
     spec = yaml.safe_load((run.folder / "spec.yaml").read_text())
     Spec.model_validate(spec)
     assert spec["status"] == "draft"
-    assert spec["tests"][0] == "lists Books → 200"
+    assert spec["tests"][0]["name"] == "lists Books"
+    assert spec["tests"][0]["expect"] == {"status": 200}
 
 
 def test_trace_records_where_each_value_came_from(report, model):

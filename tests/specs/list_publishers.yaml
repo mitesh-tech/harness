@@ -48,7 +48,13 @@ components:
 - name: pagination
   rule: lists-are-paged
 tests:
-- lists Publishers → 200
+- name: lists Publishers
+  request:
+    method: GET
+    path: /publishers
+  expect:
+    status: 200
+  rule: kind query
 open_questions:
 - Does the task list Publishers filtered by their name? (SemIf 0.78)
 sources:
@@ -60,5 +66,6 @@ sources:
   api.response.shape: rule list-response
   api.response.fields: rule list-summary
   data: data.yaml
-  tests: 'derived from the design: one success case, one per error'
+  tests: 'derived from the design and domain.yaml: a success case, one per error, invalid values; example
+    values by rule'
   service.name: 'rule: kind query names services list_{entities}'

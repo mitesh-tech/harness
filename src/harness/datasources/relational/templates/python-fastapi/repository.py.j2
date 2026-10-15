@@ -1,0 +1,41 @@
+{{ header }}
+"""Where {{ entity }} is stored: the interface the API uses, and its SQLAlchemy implementation."""
+
+from typing import Annotated, Protocol
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+{% for line in app_imports %}{{ line }}
+{% endfor %}
+
+class {{ entity }}Repository(Protocol):
+    def add(self, values: dict[str, object]) -> {{ entity }}Row: ...
+{% if unique %}
+    def exists_with(self, **values: object) -> bool: ...
+{% endif %}{% if parent %}
+    def parent_exists(self, {{ parent.param }}: int) -> bool: ...
+{% endif %}
+
+class Sql{{ entity }}Repository:
+    def __init__(self, session: Session):
+        self.session = session
+
+    def add(self, values: dict[str, object]) -> {{ entity }}Row:
+        row = {{ entity }}Row(**values)
+        self.session.add(row)
+        self.session.commit()
+        self.session.refresh(row)
+        return row
+{% if unique %}
+    def exists_with(self, **values: object) -> bool:
+        return self.session.query({{ entity }}Row).filter_by(**values).first() is not None
+{% endif %}{% if parent %}
+    def parent_exists(self, {{ parent.param }}: int) -> bool:
+        return self.session.get({{ parent.entity }}Row, {{ parent.param }}) is not None
+{% endif %}
+
+def {{ module }}_repository(
+    session: Annotated[Session, Depends({{ session_name }})],
+) -> {{ entity }}Repository:
+    return Sql{{ entity }}Repository(session)

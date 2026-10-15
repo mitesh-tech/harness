@@ -56,6 +56,8 @@ data:
     comment: comment
   operation: insert_row
   parent_key: book_id
+  parent_table: books
+  parent_column: id
 components:
 - name: serialization
   rule: always-serialize
@@ -64,9 +66,74 @@ components:
 - name: parent_exists_check
   rule: composition-nested
 tests:
-- creates a Review → 201 with Location
-- no Book has this book_id → 404
-- invalid or missing fields → 422
+- name: creates a Review
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  request:
+    method: POST
+    path: /books/{book.id}/reviews
+    body:
+      rating: 1
+      comment: Comment 1
+  expect:
+    status: 201
+    headers:
+    - Location
+    body:
+      rating: 1
+      comment: Comment 1
+  rule: kind create
+- name: no Book has this book_id
+  request:
+    method: POST
+    path: /books/999999/reviews
+    body:
+      rating: 1
+      comment: Comment 1
+  expect:
+    status: 404
+    problem: no Book has this book_id
+  rule: not-found
+- name: rating is required
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  request:
+    method: POST
+    path: /books/{book.id}/reviews
+    body:
+      comment: Comment 1
+  expect:
+    status: 422
+    problem: invalid or missing fields
+  rule: invalid-body
+- name: rating above 5 is invalid
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  request:
+    method: POST
+    path: /books/{book.id}/reviews
+    body:
+      rating: 6
+      comment: Comment 1
+  expect:
+    status: 422
+    problem: invalid or missing fields
+  rule: invalid-body
 open_questions: []
 sources:
   api.method: kind create
@@ -78,4 +145,5 @@ sources:
   api.response.shape: rule item-response
   api.response.fields: rule item-response
   data: data.yaml
-  tests: 'derived from the design: one success case, one per error'
+  tests: 'derived from the design and domain.yaml: a success case, one per error, invalid values; example
+    values by rule'

@@ -1,0 +1,37 @@
+# The python-fastapi stack pack: FastAPI routes, Pydantic schemas,
+# SQLAlchemy models and repositories, pytest tests.
+name: python-fastapi
+description: "FastAPI + Pydantic + SQLAlchemy 2, tested with pytest"
+
+# Where generated files go, relative to the project root.
+layout:
+  models: app/models
+  schemas: app/schemas
+  repositories: app/repositories
+  api: app/api
+  rules: app/rules
+  tests: tests
+  problems: app/problems.py
+
+# The app's own pieces that generated code uses (module:name).
+imports:
+  base: "app.db:Base"
+  session: "app.db:get_session"
+
+# Generated lines go between these markers in these hand-written files.
+registration:
+  routers: app/main.py
+  models: app/models/__init__.py
+markers:
+  start: "# harness ↓ (generated lines; keep these markers)"
+  end: "# harness ↑"
+
+# How to run the project's checks, from the project root.
+commands:
+  test: [uv, run, pytest, -q]
+  lint: [uv, run, ruff, check]
+
+# The project's test fixtures generated tests use.
+fixtures:
+  client: client     # an HTTP test client for the app
+  session: session   # a database session, to set up `given` data

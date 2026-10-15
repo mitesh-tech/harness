@@ -49,9 +49,43 @@ components:
 - name: body_validation
   rule: create-validates-body
 tests:
-- creates a Publisher → 201 with Location
-- invalid or missing fields → 422
-- another Publisher already has this name → 409
+- name: creates a Publisher
+  request:
+    method: POST
+    path: /publishers
+    body:
+      name: Name 1
+  expect:
+    status: 201
+    headers:
+    - Location
+    body:
+      name: Name 1
+  rule: kind create
+- name: another Publisher already has this name
+  given:
+  - create: Publisher
+    as: existing_publisher
+    with:
+      name: Name 1
+  request:
+    method: POST
+    path: /publishers
+    body:
+      name: Name 1
+  expect:
+    status: 409
+    problem: another Publisher already has this name
+  rule: unique-taken
+- name: name is required
+  request:
+    method: POST
+    path: /publishers
+    body: {}
+  expect:
+    status: 422
+    problem: invalid or missing fields
+  rule: invalid-body
 open_questions: []
 sources:
   api.method: kind create
@@ -61,5 +95,6 @@ sources:
   api.response.shape: rule item-response
   api.response.fields: rule item-response
   data: data.yaml
-  tests: 'derived from the design: one success case, one per error'
+  tests: 'derived from the design and domain.yaml: a success case, one per error, invalid values; example
+    values by rule'
   service.name: 'rule: kind create names services add_{entity}'

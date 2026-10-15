@@ -1,0 +1,32 @@
+{{ header }}
+"""{{ method }} {{ path }}: {{ task }}"""
+
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Response
+
+from {{ problems_module }} import Problem
+from {{ repositories_module }}.{{ service }} import {{ entity }}Repository, {{ module }}_repository
+from {{ rules_module }} import {{ service }} as rules
+from {{ schemas_module }}.{{ service }} import {{ entity }}, {{ request_class }}
+
+router = APIRouter(tags=["{{ tag }}"])
+
+
+@router.{{ method | lower }}("{{ path }}", status_code={{ status }}, response_model={{ entity }})
+def {{ service }}(
+{% for p in path_params %}    {{ p }}: int,
+{% endfor %}    body: {{ request_class }},
+    response: Response,
+    repository: Annotated[{{ entity }}Repository, Depends({{ module }}_repository)],
+):
+{% if parent %}    if not repository.parent_exists({{ parent.param }}):
+        raise Problem({{ not_found }}, "no {{ parent.entity }} has this {{ parent.param }}")
+{% endif %}    rules.check(body)
+{% for u in unique %}    if repository.exists_with({{ u }}=body.{{ u }}):
+        raise Problem({{ conflict }}, "another {{ entity }} already has this {{ u }}")
+{% endfor %}    values = body.model_dump()
+{% if parent %}    values["{{ parent.key }}"] = {{ parent.param }}
+{% endif %}    row = repository.add(values)
+    response.headers["Location"] = f"{{ location }}"
+    return row

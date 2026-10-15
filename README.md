@@ -2,7 +2,7 @@
 
 **Build backend APIs from tasks written in business language: deterministic where it can be, AI where it must be, approved by you where it matters.**
 
-> **Status: early development.** Today the CRUD API factory **understands** a task (classify), knows **where the data lives** (data mapping) and **designs** the API as a spec you can review (resolve). Generating the code from a design you confirm comes next (stage S5 in the [plan](docs/plan.md)).
+> **Status: early development.** Today the CRUD API factory **understands** a task (classify), knows **where the data lives** (data mapping) and **designs** the API as a spec you can review (resolve). It **generates** tested code for create APIs from a spec you confirm; verifying, reporting and the other kinds come next (see the [plan](docs/plan.md)).
 
 ## What you get
 
@@ -208,6 +208,37 @@ Saved     .harness/runs/20261015-130930-4d0c/spec.yaml, openapi.yaml, trace.json
 
 `harness resolve --service add_book` designs an existing service without SemIf. The design follows the [CRUD factory's design decisions](docs/factories/crud-api.md#design-decisions): the identifier is a path parameter, query parameters only filter and page lists, a list shows each item's summary, composition children are nested, deletes cascade or are restricted by your `on_delete`.
 
+### 8. Confirm the spec
+
+```bash
+harness confirm 20261015-130930-4d0c            # show it: API, tests, what's left to decide
+harness confirm 20261015-130930-4d0c --approve  # check it again and confirm (or --reject)
+```
+
+Edit `spec.yaml` first if you want: answer open questions (record them under `answers:` and remove the question), replace a `<placeholder>`, change a test case. Approving checks the edited spec again; a spec changed after it was confirmed must be confirmed again.
+
+### 9. Generate the code: tests first
+
+```bash
+harness generate 20261015-130930-4d0c            # into a new git worktree and branch
+harness generate 20261015-130930-4d0c --in-place # or into the project itself
+```
+
+```
+  wrote   tests/test_add_review.py        ← first, from the spec's tests
+  wrote   app/models/review.py
+  wrote   app/schemas/add_review.py
+  wrote   app/repositories/add_review.py
+  wrote   app/api/add_review.py
+  wrote   app/rules/add_review.py         ← yours: business rules, never overwritten
+Tests     tests/test_add_review.py
+  before  4 failing, 0 passing  (should all fail)
+  after   4 passing, 0 failing
+OK: the code passes the tests from the spec.
+```
+
+The tests are generated **from the confirmed spec**, before the code, and run once to show they fail; then the code is generated and the same tests must pass. Routers and models are registered between `# harness ↓` / `# harness ↑` markers in `app/main.py` and `app/models/__init__.py`; nothing else you wrote is edited. A hand-written model is reused only if it has every column `data.yaml` maps (otherwise generation stops and says what's missing), and a generated file you edited by hand is never overwritten. Today the CRUD factory generates **create** APIs; the other kinds come next.
+
 ## Customising
 
 | You want to… | Do this |
@@ -233,6 +264,8 @@ Overrides contain only what differs; `harness validate` lists the override file 
 | `harness validate [--introspect] [--strict]` | check the project's knowledge (and data sources) |
 | `harness classify "task" [--trace] [-v] [--json] [--trace-out f]` | classify a task, with an explained trace |
 | `harness resolve "task"` / `--service NAME` | design the API and save a spec, an OpenAPI document and the trace in `.harness/runs/<id>/` |
+| `harness confirm RUN [--approve \| --reject]` | review a spec, then confirm or reject it |
+| `harness generate RUN [--in-place]` | generate tests (must fail) then code (must pass) from a confirmed spec |
 | `harness override SECTION.NAME` | start a project override from the factory's entry |
 | `harness eval classify` | run the project's eval cases against SemIf |
 | `harness kb query "goal"` / `harness kb export` | ask the knowledge as Prolog, or export it |

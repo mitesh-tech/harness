@@ -378,6 +378,100 @@ def resolve(
     typer.echo(f"Saved     {folder}/spec.yaml, openapi.yaml, trace.jsonl")
 
 
+@app.command()
+def confirm(
+    run: Annotated[str, typer.Argument(help="The run id (a folder in .harness/runs/).")],
+    approve: Annotated[
+        bool, typer.Option("--approve", help="Check the spec again and confirm it.")
+    ] = False,
+    reject: Annotated[bool, typer.Option("--reject", help="Reject the spec.")] = False,
+    project: ProjectOption = Path("."),
+) -> None:
+    """Review a run's spec, then approve it (after checking it again) or reject it."""
+    from harness.resolve import ResolveError, find_run, read_spec, spec_problems
+    from harness.resolve import confirm as confirm_spec
+
+    if approve and reject:
+        typer.echo("Choose --approve or --reject, not both.", err=True)
+        raise typer.Exit(1)
+    report = _valid_knowledge(project)
+    try:
+        folder = find_run(report, run)
+        if approve or reject:
+            spec = confirm_spec(report, folder, approve)
+            typer.echo(f"Run {run}: spec {spec['status']}.")
+            if approve:
+                typer.echo(f"Generate it with: harness generate {run}")
+            return
+    except ResolveError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    spec = read_spec(folder)
+    api = spec["api"]
+    typer.echo(f"Run       {run}   status: {spec['status']}")
+    typer.echo(f"Task      {spec['task']}")
+    name = spec["service"]["name"] + (" (new)" if spec["service"]["new"] else "")
+    typer.echo(f"Service   {name}")
+    typer.echo(f"API       {api['method']} {api['path']}  →  {api['response']['status']}")
+    typer.echo(f"Tests     {len(spec.get('tests', []))} cases")
+    for case in spec.get("tests", []):
+        typer.echo(f"          - {case['name']} → {case['expect']['status']}")
+    problems = spec_problems(report, spec)
+    if problems:
+        typer.echo("To do     " + "\n          ".join(problems))
+    typer.echo(f"Spec      {_show(report, folder / 'spec.yaml')}")
+    typer.echo(
+        f"Next      edit the spec if needed, then: harness confirm {run} --approve  (or --reject)"
+    )
+
+
+@app.command()
+def generate(
+    run: Annotated[str, typer.Argument(help="The run id of a confirmed spec.")],
+    in_place: Annotated[
+        bool,
+        typer.Option("--in-place", help="Write into the project itself, not a new git worktree."),
+    ] = False,
+    project: ProjectOption = Path("."),
+) -> None:
+    """Generate code from a confirmed spec: its tests first (they must fail), then the code."""
+    from harness.generate import GenerateError
+    from harness.generate import generate as generate_code
+    from harness.resolve import ResolveError, find_run
+
+    report = _valid_knowledge(project)
+    try:
+        result = generate_code(report, find_run(report, run), in_place=in_place)
+    except (ResolveError, GenerateError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    where = (
+        result.workspace
+        if result.branch is None
+        else f"{result.workspace}  (branch {result.branch})"
+    )
+    typer.echo(f"Code      {where}")
+    for target in result.written:
+        typer.echo(f"  wrote   {target}")
+    for target in result.kept:
+        typer.echo(f"  kept    {target}")
+    red, green = result.red, result.green
+    typer.echo(f"Tests     {result.test_file}")
+    typer.echo(f"  before  {len(red.failed)} failing, {len(red.passed)} passing  (should all fail)")
+    for name in red.passed:
+        typer.echo(f"          ! {name} passed before the code existed: it tests nothing")
+    typer.echo(f"  after   {len(green.passed)} passing, {len(green.failed)} failing")
+    for name in green.failed:
+        typer.echo(f"          ✗ {name}")
+    if not result.ok:
+        typer.echo(green.output, err=True)
+        typer.echo("FAILED: the generated code does not pass its tests.", err=True)
+        raise typer.Exit(1)
+    typer.echo("OK: the code passes the tests from the spec.")
+
+
 OVERRIDE_HEADER = (
     "# yaml-language-server: $schema={schema}\n"
     "#\n"

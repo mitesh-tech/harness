@@ -1,0 +1,16 @@
+{{ header }}
+"""The {{ table }} table: {{ entity }}, as data.yaml maps it."""
+{% if stdlib_imports %}
+{% for line in stdlib_imports %}{{ line }}
+{% endfor %}{% endif %}
+{{ sqlalchemy_import }}
+from sqlalchemy.orm import Mapped, mapped_column
+
+from {{ base_module }} import {{ base_name }}
+
+
+class {{ entity }}({{ base_name }}):
+    __tablename__ = "{{ table }}"
+
+{% for c in columns %}    {{ c.attribute }}: Mapped[{{ c.python }}] = mapped_column({{ c.args }})
+{% endfor %}

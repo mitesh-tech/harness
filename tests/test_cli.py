@@ -30,7 +30,7 @@ def test_validate_bookstore_ok():
     result = runner.invoke(app, ["validate", "--project", str(BOOKSTORE), "--strict"])
     assert result.exit_code == 0, result.output
     assert "logic checks (Prolog)                no problems" in result.output
-    assert "OK: 0 errors, 1 warning" in result.output
+    assert "OK: 0 errors, 0 warnings" in result.output
 
 
 def test_validate_reports_logic_errors(project):
@@ -96,7 +96,7 @@ def test_validate_reports_errors(project):
     result = runner.invoke(app, ["validate", "--project", str(project)])
     assert result.exit_code == 1
     assert "associations › book_reviews › kind" in result.output
-    assert "FAILED: 1 error, 1 warning" in result.output
+    assert "FAILED: 1 error, 0 warnings" in result.output
 
 
 def test_schema_export_writes_all_schemas(tmp_path):
