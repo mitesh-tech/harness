@@ -23,8 +23,8 @@ cases:
     expect:
       outcome: matched
       answers: { factory: crud-api, target: Book, operation: create, kind: create, service: add_book }
-      path: [factory, target, parent, operation, kind, service]
-      semif_calls: 4  # parent and kind are decided by rule
+      path: [factory, target, parent, data, operation, kind, service]
+      semif_calls: 4  # parent, data and kind are decided by rule
 
   - task: "We need an endpoint to enter new books into the catalogue"
     group: add-book
@@ -106,7 +106,7 @@ cases:
     expect:
       outcome: new_service
       answers: { target: Publisher, operation: create, kind: create, name: add_publisher }
-      path: [factory, target, parent, operation, kind, service, name]
+      path: [factory, target, parent, data, operation, kind, service, name]
       semif_calls: 3  # no service to confirm, so none is asked
 
   - task: "Delete a book through a new endpoint"

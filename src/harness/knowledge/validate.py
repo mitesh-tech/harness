@@ -14,6 +14,7 @@ from pathlib import Path
 
 from harness.factories import Factory, installed_factories
 from harness.knowledge import references
+from harness.knowledge.data import LoadedData, check_data, load_data
 from harness.knowledge.load import Problem, YamlFile, parse, read_yaml
 from harness.knowledge.schema import (
     ClassifyEvals,
@@ -57,6 +58,8 @@ class Report:
     # Until the factory router exists, commands use the first enabled factory's knowledge.
     technical: Technical | None = None
     evals: ClassifyEvals | None = None  # .harness/evals/classify.yaml, when present
+    data: LoadedData | None = None  # .harness/data.yaml: where things are stored
+    introspection: str | None = None  # summary of --introspect, when it ran
     logic: str | None = None  # summary of layer 4, when it ran or was skipped
 
     @property
@@ -72,11 +75,14 @@ class Report:
         return not self.errors
 
 
-def validate_project(start: Path, strict: bool = False, logic: bool = True) -> Report:
+def validate_project(
+    start: Path, strict: bool = False, logic: bool = True, introspect: bool = False
+) -> Report:
     """Check a project's knowledge.
 
-    strict: skipped logic checks (no Prolog) count as an error.
-    logic:  run layer 4; turn off when only layers 1-3 are needed.
+    strict:     skipped logic checks (no Prolog) count as an error.
+    logic:      run layer 4; turn off when only layers 1-3 are needed.
+    introspect: also compare data.yaml with the real data sources (read-only).
     """
     report = Report()
     project_file = find_project_file(start)
@@ -156,10 +162,130 @@ def validate_project(start: Path, strict: bool = False, logic: bool = True) -> R
     if domain is not None and primary is not None:
         domain_file = _yaml_file(knowledge_dir / "domain.yaml")
         _attach(report, references.check_domain(domain, primary.technical), {(): domain_file})
+        _load_data_file(report, knowledge_dir / DATA, domain)
         if logic and report.ok:
             _check_logic(report, domain, primary, domain_file, strict)
+        if introspect and report.data is not None:
+            _introspect(report)
         _load_evals(report, knowledge_dir / EVALS, domain, primary.technical)
     return report
+
+
+DATA = Path("data.yaml")
+
+
+def _load_data_file(report: Report, path: Path, domain: Domain) -> None:
+    if not path.is_file():
+        report.problems.append(
+            Problem(
+                path,
+                (),
+                "no data.yaml: nothing says where entities are stored, "
+                "so every task ends as no_mapping",
+                None,
+                "warning",
+            )
+        )
+        return
+    report.checked.append(Checked(path))
+    data, problems = load_data(path)
+    report.problems.extend(problems)
+    if data is None:
+        return
+    report.checked[-1].summary = data.summary()
+    report.data = data
+    _attach(report, check_data(data, domain), {(): data.file})
+
+
+def _introspect(report: Report) -> None:
+    """Compare data.yaml with each real source; differences are warnings."""
+    data, found, unread = report.data, 0, 0
+    for source in data.sources.values():
+        reader = source.type.introspect()
+        if reader is None:
+            continue
+        url = source.url(report.root)
+        if url is None:
+            report.problems.append(
+                data.file.problem(
+                    ("sources", source.name),
+                    f"cannot read {source.name}: set {source.connection.url_env}",
+                    "warning",
+                )
+            )
+            unread += 1
+            continue
+        try:
+            structure = reader.read_structure(url)
+        except Exception as exc:  # a missing driver, an unreachable database, …
+            report.problems.append(
+                data.file.problem(
+                    ("sources", source.name), f"cannot read {source.name}: {exc}", "warning"
+                )
+            )
+            unread += 1
+            continue
+        for path, message in _differences(data, source.name, structure):
+            report.problems.append(data.file.problem(path, message, "warning"))
+            found += 1
+    summary = "matches" if not found else f"{found} difference{'s' * (found != 1)}"
+    if unread:
+        summary = f"{unread} source{'s' * (unread != 1)} not read" + (
+            f", {summary}" if found else ""
+        )
+    report.introspection = summary
+
+
+def _differences(data: LoadedData, source: str, structure: dict[str, set[str]]):
+    """Tables and columns data.yaml names that the real source lacks, and unmapped columns."""
+    for name, mapping in data.entities.items():
+        if mapping.source != source:
+            continue
+        at = ("entities", name)
+        if mapping.table not in structure:
+            yield (
+                at + ("table",),
+                f"table '{mapping.table}' not found (it is created when {name}'s first API "
+                "is generated)",
+            )
+            continue
+        columns = structure[mapping.table]
+        mapped = {mapping.column_of(a) for a in mapping.columns} | {mapping.parent_key}
+        for attribute in mapping.columns:
+            column = mapping.column_of(attribute)
+            if column is not None and column not in columns:
+                yield at + ("columns", attribute), f"column '{column}' not found in {mapping.table}"
+        if mapping.parent_key and mapping.parent_key not in columns:
+            yield (
+                at + ("parent_key",),
+                f"column '{mapping.parent_key}' not found in {mapping.table}",
+            )
+        for column in sorted(columns - mapped - _reference_columns(data, mapping.table)):
+            yield at, f"{mapping.table}.{column} is not in the domain (ignored)"
+    for name, mapping in data.relationships.items():
+        if mapping.source != source:
+            continue
+        at = ("relationships", name)
+        if mapping.stored_as == "link_table":
+            if mapping.table not in structure:
+                yield at + ("table",), f"table '{mapping.table}' not found"
+                continue
+            for entity, key in mapping.keys.items():
+                if key not in structure[mapping.table]:
+                    yield at + ("keys", entity), f"column '{key}' not found in {mapping.table}"
+        else:
+            table, column = mapping.column.split(".")
+            if table in structure and column not in structure[table]:
+                yield at + ("column",), f"column '{column}' not found in {table}"
+
+
+def _reference_columns(data: LoadedData, table: str) -> set[str]:
+    """Columns of `table` that store a one-to-many relationship."""
+    return {
+        m.column.split(".")[1]
+        for m in data.relationships.values()
+        if m.stored_as == "reference" and m.column.split(".")[0] == table
+    }
 
 
 EVALS = Path("evals") / "classify.yaml"
@@ -254,7 +380,7 @@ def _check_logic(
     flow_file = primary.origins.get(("classification",)) or primary.origins[()]
     checks = [f.checks for f in report.factories.values() if f.checks.is_file()]
     try:
-        engine = Engine(domain, primary.technical, checks)
+        engine = Engine(domain, primary.technical, checks, report.data)
     except PrologUnavailable as exc:
         report.logic = "skipped"
         severity = "error" if strict else "warning"
@@ -271,6 +397,9 @@ def _check_logic(
             path = ("operations", problem.name)
             origin = primary.origins.get(path) or primary.origins[()]
             report.problems.append(origin.problem(path, problem.message))
+        elif problem.where == "relationship" and report.data is not None:
+            path = ("relationships", problem.name)
+            report.problems.append(report.data.file.problem(path, problem.message))
         else:
             path = (LOGIC_PATHS[problem.where], problem.name)
             report.problems.append(domain_file.problem(path, problem.message))

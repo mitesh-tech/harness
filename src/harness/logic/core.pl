@@ -30,3 +30,7 @@ offered_for(_, _, target_type).
 % The target a service acts on.
 service_target(S, T) :- acts_on(S, T).
 service_target(S, T) :- uses(S, T).
+
+% Where a target is stored: an entity's source, or a relationship's.
+storage_source(T, Src) :- stored_in(T, Src).
+storage_source(T, Src) :- relationship_stored_in(T, Src).

@@ -77,8 +77,21 @@ def parse[M: BaseModel](model: type[M], file: YamlFile) -> tuple[M | None, list[
         return None, [_to_problem(model, file, error) for error in exc.errors()]
 
 
-def _to_problem(model: type[BaseModel], file: YamlFile, error: dict) -> Problem:
-    loc = tuple(error["loc"])
+def parse_at[M: BaseModel](
+    model: type[M], file: YamlFile, at: PathKey
+) -> tuple[M | None, list[Problem]]:
+    """Check one part of a file (e.g. one entry checked by a plugin), with lines for errors."""
+    data = file.data
+    for key in at:
+        data = data[key]
+    try:
+        return model.model_validate(data), []
+    except ValidationError as exc:
+        return None, [_to_problem(model, file, error, at) for error in exc.errors()]
+
+
+def _to_problem(model: type[BaseModel], file: YamlFile, error: dict, at: PathKey = ()) -> Problem:
+    loc = at + tuple(error["loc"])
     path = _real_path(loc, file)
     kind = error["type"]
     value = error.get("input")
@@ -88,7 +101,7 @@ def _to_problem(model: type[BaseModel], file: YamlFile, error: dict) -> Problem:
         path = path + (loc[-1],)
     elif kind == "extra_forbidden":
         message = f"unknown field '{loc[-1]}'"
-        allowed = _allowed_fields(model, path[:-1])
+        allowed = _allowed_fields(model, path[len(at) : -1])
         guess = difflib.get_close_matches(str(loc[-1]), allowed, n=1, cutoff=0.6)
         if guess:
             message += f" (did you mean '{guess[0]}'?)"

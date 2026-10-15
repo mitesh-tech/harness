@@ -248,7 +248,8 @@
                 "target_parent",
                 "operations",
                 "offered_kinds",
-                "services_for_target_kind"
+                "services_for_target_kind",
+                "target_storage"
               ],
               "type": "string"
             },

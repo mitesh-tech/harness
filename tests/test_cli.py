@@ -8,7 +8,7 @@ from typer.testing import CliRunner
 
 from harness import __version__
 from harness.cli import app
-from harness.knowledge.schema import SCHEMAS
+from harness.schemas import SCHEMAS
 
 runner = CliRunner()
 

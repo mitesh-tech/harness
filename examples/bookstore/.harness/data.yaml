@@ -1,0 +1,63 @@
+# yaml-language-server: $schema=../../../schemas/data.schema.json
+#
+# Where Bookstore's data is stored: the data sources, then each entity and
+# relationship from domain.yaml and where it lives. domain.yaml says what the
+# business has; this file says where it is kept.
+
+# ── Data sources ────────────────────────────────────────────────────
+sources:
+  bookstore_db:
+    type: relational
+    description: "The bookstore's own SQLite database"
+    connection:
+      url_env: BOOKSTORE_DATABASE_URL         # the same variable app/db.py reads
+      default_url: sqlite:///./bookstore.db   # local fallback for development
+
+# ── Entities: table, and a column for every attribute ───────────────
+entities:
+  Book:
+    source: bookstore_db
+    table: books
+    columns:
+      id: id
+      isbn: isbn
+      title: title
+      author: author
+      price: price
+      status: status          # the lifecycle field
+
+  Publisher:
+    source: bookstore_db
+    table: publishers
+    columns:
+      id: id
+      name: name
+
+  Review:
+    source: bookstore_db
+    table: reviews
+    parent_key: book_id       # part of a Book: the column pointing at its Book
+    columns:
+      id: id
+      rating: rating
+      comment: comment
+
+  Collection:
+    source: bookstore_db
+    table: collections
+    columns:
+      id: id
+      name: name
+
+# ── Relationships: how each connection is stored ────────────────────
+relationships:
+  collection_books:           # many-to-many: a link table with a key per side
+    source: bookstore_db
+    table: collection_books
+    keys:
+      Collection: collection_id
+      Book: book_id
+
+  book_publisher:             # one-to-many: a column on the child's table
+    source: bookstore_db
+    column: books.publisher_id

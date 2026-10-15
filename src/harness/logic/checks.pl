@@ -63,3 +63,25 @@ problem(service, S, service_kind_not_offered, [K, T, Op]) :-
 % and book_publisher are both book_publisher), or targets get mixed up.
 problem(entity, T, target_name_clash, []) :-
     entity(T, _), association(T, _, _, _, _).
+
+% ── Data (only when the project has a data.yaml) ────────────────────
+
+% A service's source must be able to do what its kind needs (insert_row, …).
+problem(service, S, source_cannot_persist, [P, Src]) :-
+    data_loaded,
+    kind(S, K), kind_persistence(K, P), service_target(S, T),
+    storage_source(T, Src), source_type(Src, Ty),
+    \+ source_supports(Ty, P).
+
+% Filters on a list need a source that can filter.
+problem(service, S, source_cannot_filter, [Src]) :-
+    data_loaded,
+    once(filter(S, _)), service_target(S, T),
+    storage_source(T, Src), source_type(Src, Ty),
+    \+ source_supports(Ty, filter).
+
+% A relationship that services use must say how it is stored.
+problem(relationship, A, relationship_not_stored, []) :-
+    data_loaded,
+    association(A, aggregation, _, _, _), once(uses(_, A)),
+    \+ relationship_storage(A, _).
