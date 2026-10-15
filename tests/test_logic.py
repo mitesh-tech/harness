@@ -1,6 +1,7 @@
 import pytest
 from conftest import BOOKSTORE, edit, factory_override
 
+from harness.knowledge.schema import Component, Rule
 from harness.knowledge.validate import validate_project
 from harness.logic import engine as engine_module
 from harness.logic.compile import atom, compile_knowledge, snake
@@ -95,16 +96,36 @@ def test_each_condition_type(engine):
     assert engine.query("route(add_review, R, _)") == [{"R": "nested"}]
 
 
-def test_askable_fact_switches_a_rule_on(engine):
-    assert not engine.ask("component(add_book, auth_check, _)")
-    engine.ask("assertz(fact(add_book, requires_login))")
-    assert engine.query("component(add_book, auth_check, R)") == [{"R": "login-needs-auth"}]
+@pytest.fixture
+def with_askable(bookstore):
+    """The CRUD factory has no askable facts; the mechanism is the platform's, so add one."""
+    technical = bookstore.technical.model_copy(deep=True)
+    technical.askable["audited"] = "Must every change be recorded for audit?"
+    technical.components["audit_log"] = Component(description="Record who changed what")
+    technical.rules.append(
+        Rule.model_validate(
+            {
+                "id": "audited-writes",
+                "when": {"fact": "audited"},
+                "then": {"components": ["audit_log"]},
+            }
+        )
+    )
+    return technical
 
 
-def test_engines_do_not_share_facts(bookstore, engine):
-    engine.ask("assertz(fact(add_book, requires_login))")
-    fresh = Engine(bookstore.domain, bookstore.technical)
-    assert not fresh.ask("component(add_book, auth_check, _)")
+def test_askable_fact_switches_a_rule_on(bookstore, with_askable):
+    engine = Engine(bookstore.domain, with_askable)
+    assert not engine.ask("component(add_book, audit_log, _)")
+    engine.ask("assertz(fact(add_book, audited))")
+    assert engine.query("component(add_book, audit_log, R)") == [{"R": "audited-writes"}]
+
+
+def test_engines_do_not_share_facts(bookstore, with_askable):
+    engine = Engine(bookstore.domain, with_askable)
+    engine.ask("assertz(fact(add_book, audited))")
+    fresh = Engine(bookstore.domain, with_askable)
+    assert not fresh.ask("component(add_book, audit_log, _)")
 
 
 def test_inputs_are_passed_as_values(engine):

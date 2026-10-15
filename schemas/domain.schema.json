@@ -56,6 +56,27 @@
           ],
           "title": "Cardinality",
           "type": "string"
+        },
+        "on_delete": {
+          "anyOf": [
+            {
+              "enum": [
+                "restrict",
+                "set_null"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "On Delete"
+        },
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
         }
       },
       "required": [
@@ -173,6 +194,22 @@
             }
           ],
           "default": null
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "items": {
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
         }
       },
       "required": [
@@ -314,6 +351,17 @@
             }
           ],
           "default": null
+        },
+        "api": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ServiceApi"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -321,6 +369,21 @@
         "kind"
       ],
       "title": "Service",
+      "type": "object"
+    },
+    "ServiceApi": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "pattern": "^/\\S*$",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "ServiceApi",
       "type": "object"
     },
     "Transition": {

@@ -29,3 +29,19 @@ problem(service, S, delete_parent_without_cascade, [E, C]) :-
 % An entity must not end up composed in itself.
 problem(entity, E, composition_cycle, []) :-
     entity(E, _), composed_in(E, E).
+
+% ── API anatomy ─────────────────────────────────────────────────────
+
+% A list can only be filtered by what it shows (its summary).
+problem(service, S, filter_not_in_summary, [A, E]) :-
+    filter(S, A), acts_on(S, E), \+ summary_field(E, A).
+
+% Every service gets a path (a transition is named {verb}_{entity}).
+problem(service, S, service_without_path, []) :-
+    service(S), \+ api_path(S, _, _).
+
+% Two services must not answer the same method and path.
+problem(service, S, route_clash, [Other, Method, Path]) :-
+    api_path(S, Path, _), method(S, M),
+    api_path(Other, Path, _), method(Other, M), S @< Other,
+    upcase_atom(M, Method).

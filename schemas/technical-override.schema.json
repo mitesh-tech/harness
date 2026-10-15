@@ -1,5 +1,52 @@
 {
   "$defs": {
+    "ApiOverride": {
+      "additionalProperties": false,
+      "description": "Only the conventions a project changes; the rest stay the factory's.",
+      "properties": {
+        "paths": {
+          "additionalProperties": true,
+          "propertyNames": {
+            "enum": [
+              "case",
+              "plural",
+              "param",
+              "nest_children",
+              "transition"
+            ]
+          },
+          "title": "Paths",
+          "type": "object"
+        },
+        "paging": {
+          "additionalProperties": true,
+          "propertyNames": {
+            "enum": [
+              "page",
+              "size",
+              "default_size",
+              "max_size"
+            ]
+          },
+          "title": "Paging",
+          "type": "object"
+        },
+        "errors": {
+          "additionalProperties": true,
+          "propertyNames": {
+            "enum": [
+              "not_found",
+              "invalid",
+              "conflict"
+            ]
+          },
+          "title": "Errors",
+          "type": "object"
+        }
+      },
+      "title": "ApiOverride",
+      "type": "object"
+    },
     "Branch": {
       "additionalProperties": false,
       "description": "Choose the next step by the answer given (a step with `choices`).",
@@ -650,6 +697,25 @@
       },
       "title": "Askable",
       "type": "object"
+    },
+    "api": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ApiOverride"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "remove_rules": {
+      "items": {
+        "pattern": "^[a-z][a-z0-9-]*$",
+        "type": "string"
+      },
+      "title": "Remove Rules",
+      "type": "array"
     },
     "classification": {
       "anyOf": [

@@ -32,6 +32,19 @@
       "title": "Technical",
       "type": "string"
     },
+    "rules": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Rules"
+    },
     "checks": {
       "default": "checks.pl",
       "minLength": 1,

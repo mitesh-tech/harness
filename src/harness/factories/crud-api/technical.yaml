@@ -165,6 +165,28 @@ operations:
     examples: ["delete", "remove", "take out of"]
     kinds: [delete, unlink]
 
+# ── API conventions: how every API of this factory is shaped ────────
+# The anatomy rules (anatomy.pl) read these settings, so a project can
+# override any of them in .harness/factories/crud-api/technical.yaml.
+# Login, roles and caching are not decided here: generated routers fit
+# into the app's own auth (an auth factory is planned).
+api:
+  paths:
+    case: kebab               # BookAuthor -> /book-authors
+    plural: true              # /books, not /book
+    param: "{entity}_id"      # {book_id}
+    nest_children: true       # /books/{book_id}/reviews/{review_id}
+    transition: verb_in_path  # PATCH /books/{book_id}/archive (or field_in_body)
+  paging:
+    page: page                # query param names for a list
+    size: size
+    default_size: 20
+    max_size: 100
+  errors:
+    not_found: 404            # unknown identifier or parent
+    invalid: 422              # the request body breaks the attribute rules
+    conflict: 409             # a unique value taken, a move not allowed, a delete restricted
+
 # ── Components a design can include ─────────────────────────────────
 components:
   serialization:       { description: "Turn stored data into the response shape" }
@@ -177,9 +199,6 @@ components:
   parent_exists_check: { description: "Check the parent exists before acting on its child" }
   cascade_children:    { description: "Remove composition children together with their parent" }
   both_exist_check:    { description: "Check both sides of a connection exist" }
-  auth_check:          { description: "Require a logged-in user" }
-  admin_role_check:    { description: "Allow only administrators" }
-  read_cache:          { description: "Serve repeated reads from a cache" }
 
 # ── Bridge rules: domain facts -> technical decisions ───────────────
 # Every rule has an id; it appears in the proof of each decision.
@@ -230,18 +249,6 @@ rules:
   - id: aggregation-reference
     when: { kind_in: [link, unlink], cardinality: one_to_many }
     then: { persistence_target: reference, components: [both_exist_check] }
-
-  - id: login-needs-auth
-    when: { fact: requires_login }
-    then: { components: [auth_check] }
-
-  - id: admin-only
-    when: { fact: admin_only }
-    then: { components: [auth_check, admin_role_check] }
-
-  - id: cached-reads
-    when: { fact: cached }
-    then: { components: [read_cache] }
 
 # ── Classification: the questions SemIf answers about a task ────────
 # Before this flow, the platform asks which factory fits the task
@@ -324,9 +331,3 @@ classification:
       on_answer: matched
       on_none: new_service
       on_empty: new_service
-
-# ── Askable facts: yes/no questions SemIf may be asked ──────────────
-askable:
-  requires_login: "Does this task require the user to be logged in?"
-  admin_only: "Is this action limited to administrators?"
-  cached: "Should the results of this service be cached?"

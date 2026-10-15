@@ -2,4 +2,5 @@
 # Links this project to the harness.
 version: 1
 pack: python-fastapi   # stack pack with templates and commands
-knowledge: .harness    # folder holding domain.yaml (and an optional technical.yaml override)
+knowledge: .harness    # domain.yaml, data.yaml, evals/ and factories/<name>/technical.yaml overrides
+harness: ">=0.0.1"     # harness versions this project works with
