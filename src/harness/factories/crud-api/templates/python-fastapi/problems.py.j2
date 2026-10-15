@@ -1,0 +1,39 @@
+{{ header }}
+"""Errors as application/problem+json (RFC 9457), for every generated API."""
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+MEDIA_TYPE = "application/problem+json"
+
+
+class Problem(Exception):
+    """Raise to answer with an error: Problem(404, "no Book has this book_id")."""
+
+    def __init__(self, status: int, title: str, detail: str | None = None):
+        super().__init__(title)
+        self.status, self.title, self.detail = status, title, detail
+
+
+def _response(status: int, title: str, detail: object = None) -> JSONResponse:
+    body = {"type": "about:blank", "title": title, "status": status}
+    if detail is not None:
+        body["detail"] = detail
+    return JSONResponse(body, status_code=status, media_type=MEDIA_TYPE)
+
+
+def install(app: FastAPI) -> None:
+    """Answer Problems, and invalid requests, as problem+json."""
+
+    @app.exception_handler(Problem)
+    async def problem(_: Request, exc: Problem) -> JSONResponse:
+        return _response(exc.status, exc.title, exc.detail)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid(_: Request, exc: RequestValidationError) -> JSONResponse:
+        return _response({{ invalid }}, "invalid or missing fields", jsonable(exc.errors()))
+
+
+def jsonable(errors) -> list:
+    return [{"field": ".".join(map(str, e["loc"][1:])), "message": e["msg"]} for e in errors]

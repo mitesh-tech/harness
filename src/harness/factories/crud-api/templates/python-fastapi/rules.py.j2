@@ -1,0 +1,13 @@
+"""Business rules for {{ service }}: {{ task }}
+
+This file is yours. harness creates it once and never overwrites it. Add the
+rules a template can't know, and refuse a request by raising a Problem, e.g.
+    raise Problem(422, "a review needs a comment when the rating is 1")
+"""
+
+from {{ problems_module }} import Problem  # noqa: F401  (for your rules)
+from {{ schemas_module }}.{{ service }} import {{ request_class }}
+
+
+def check(body: {{ request_class }}) -> None:
+    """Called before the {{ entity }} is saved."""

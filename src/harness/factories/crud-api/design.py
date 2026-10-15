@@ -11,8 +11,10 @@ The platform (harness.resolve) calls design_task / design_service and
 to_openapi, then saves the run folder.
 """
 
+import copy
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from harness.classify.walk import render
 from harness.knowledge.schema import Domain, Service, Transition
@@ -199,8 +201,11 @@ def design_service(
 
     components = engine.query(f"component({s}, C, R)")
     design.body["components"] = [{"name": a["C"], "rule": a["R"]} for a in components]
-    design.body["tests"] = derive_tests(design.body)
-    design.sources["tests"] = "derived from the design: one success case, one per error"
+    design.body["tests"] = derive_tests(design.body, domain)
+    design.sources["tests"] = (
+        "derived from the design and domain.yaml: a success case, one per error, "
+        "invalid values; example values by rule"
+    )
     return design
 
 
@@ -374,6 +379,8 @@ class _Asker:
 
 
 # ── Tests derived from the design ───────────────────────────────────
+# Concrete cases (given / request / expect) that S5 turns into tests before
+# any code exists. Example values are made up by rule from the domain.
 
 SUCCESS = {
     "create": "creates a {target}",
@@ -386,18 +393,229 @@ SUCCESS = {
     "link": "connects them",
     "unlink": "disconnects them",
 }
+MISSING_ID = 999999
 
 
-def derive_tests(body: dict) -> list[str]:
-    """One success case, one case per error, and each delete effect: what S5 verifies."""
-    target = body.get("target") or ""
-    response = body["api"]["response"]
-    success = SUCCESS[body["kind"]].format(target=target, targets=plural(target))
-    extra = " with Location" if "Location" in response.get("headers", []) else ""
-    tests = [f"{success} → {response['status']}{extra}"]
-    tests += [f"{e['when']} → {e['status']}" for e in body["api"].get("errors", [])]
-    tests += [f"after the delete: {e['means']}" for e in body.get("delete_effects", [])]
-    return tests
+def example(attribute: str, spec, n: int = 1):
+    """A valid example value for an attribute, by rule: no AI, the same every time."""
+    kind = spec.type if spec is not None else "text"
+    low = spec.min if spec is not None and spec.min is not None else None
+    if kind == "integer":
+        return int(low) if low is not None else n
+    if kind == "money":
+        return round(max(float(low or 0), 9.99) + n - 1, 2)
+    if kind == "boolean":
+        return True
+    if kind == "date":
+        return f"2026-01-{n:02d}"
+    if kind == "datetime":
+        return f"2026-01-{n:02d}T10:00:00Z"
+    if kind == "id":
+        return n
+    return f"{attribute.replace('_', ' ').capitalize()} {n}"
+
+
+def derive_tests(body: dict, domain: Domain) -> list[dict]:
+    """One success case, one per error: the cases you confirm, then S5 generates and runs."""
+    kind, api, target = body["kind"], body["api"], body.get("target")
+    entity = domain.entities.get(target) if target else None
+    builder = _Cases(domain, body)
+    cases = [builder.success()]
+    for error in api.get("errors", []):
+        case = builder.error(error)
+        if case is not None:
+            cases.append(case)
+    if kind == "create" and entity is not None:
+        cases += builder.invalid_values(entity)
+    for effect in body.get("delete_effects", []):
+        if effect["effect"] == "cascade":
+            cases.append(builder.cascade(effect))
+    return cases
+
+
+class _Cases:
+    def __init__(self, domain: Domain, body: dict):
+        self.domain, self.body = domain, body
+        self.api, self.kind, self.target = body["api"], body["kind"], body.get("target")
+        self.params = self.api.get("path_params", {})
+
+    # what must exist before the request: everything the path names
+    def _given(self, skip_target: bool) -> tuple[list[dict], dict[str, str]]:
+        given, path_values = [], {}
+        parent = self.body.get("parent")
+        for param, detail in self.params.items():
+            entity_name = detail["refers_to"]
+            if skip_target and entity_name == self.target:
+                continue
+            alias = snake(entity_name)
+            step = {"create": entity_name, "as": alias, "with": self._required(entity_name)}
+            if parent and entity_name == self.target:
+                step["within"] = snake(parent)
+            given.append(step)
+            identifier = self.domain.entities[entity_name].identifier
+            path_values[param] = f"{{{alias}.{identifier}}}"
+        return given, path_values
+
+    def _required(self, entity_name: str, n: int = 1) -> dict:
+        entity = self.domain.entities[entity_name]
+        return {
+            a: example(a, s, n)
+            for a, s in entity.attributes.items()
+            if s.required and not s.generated
+        }
+
+    def _path(self, values: dict[str, str]) -> str:
+        path = self.api["path"]
+        for param, value in values.items():
+            path = path.replace(f"{{{param}}}", value)
+        return path
+
+    def _body(self, n: int = 1) -> dict | None:
+        fields = self.api.get("request", {}).get("fields")
+        if not fields:
+            return None
+        entity = self.domain.entities.get(self.target)
+        values = {}
+        for name, detail in fields.items():
+            spec = entity.attributes.get(name) if entity else None
+            values[name] = (
+                example(name, spec, n) if spec is not None else _example_detail(name, detail, n)
+            )
+        return values
+
+    def _request(self, values: dict[str, str], body: dict | None) -> dict:
+        request = {"method": self.api["method"], "path": self._path(values)}
+        if body is not None:
+            request["body"] = body
+        return request
+
+    def success(self) -> dict:
+        target_exists = self.kind not in ("create", "link")
+        given, values = self._given(skip_target=not target_exists)
+        body = self._body(n=2 if target_exists else 1)
+        response = self.api["response"]
+        expect: dict = {"status": response["status"]}
+        if response.get("headers"):
+            expect["headers"] = list(response["headers"])
+        if body and response["shape"] == "item":
+            expect["body"] = {k: v for k, v in body.items() if k in response.get("fields", {})}
+        case = {
+            "name": SUCCESS[self.kind].format(
+                target=self.target, targets=plural(self.target or "")
+            ),
+            "request": self._request(values, body),
+            "expect": expect,
+            "rule": f"kind {self.kind}",
+        }
+        return _with_given(case, given)
+
+    def error(self, error: dict) -> dict | None:
+        rule = error["rule"]
+        target_exists = self.kind not in ("create", "link")
+        given, values = self._given(skip_target=not target_exists)
+        if rule == "not-found":
+            subject = error["when"].split()[1]  # "no Book has this book_id"
+            param = error["when"].split()[-1]
+            given = [
+                g for g in given if g["create"] != subject and g.get("within") != snake(subject)
+            ]
+            values[param] = str(MISSING_ID)
+        elif rule == "unique-taken":
+            attribute = error["when"].rsplit(" ", 1)[-1]
+            body = self._body()
+            given.append(
+                {
+                    "create": self.target,
+                    "as": f"existing_{snake(self.target)}",
+                    "with": {**self._required(self.target), attribute: body[attribute]},
+                }
+            )
+        elif rule in ("invalid-body", "transition-guard", "delete-restricted"):
+            return None  # invalid bodies get their own cases; the others come with S6
+        case = {
+            "name": error["when"],
+            "request": self._request(values, self._body()),
+            "expect": {"status": error["status"], "problem": error["when"]},
+            "rule": rule,
+        }
+        return _with_given(case, given)
+
+    def cascade(self, effect: dict) -> dict:
+        """Deleting the target also deletes its composition children."""
+        given, values = self._given(skip_target=False)
+        child = effect["affects"]
+        given.append(
+            {
+                "create": child,
+                "as": snake(child),
+                "with": self._required(child),
+                "within": snake(self.target),
+            }
+        )
+        return _with_given(
+            {
+                "name": f"after the delete: {effect['means']}",
+                "request": self._request(values, None),
+                "expect": {"status": self.api["response"]["status"], "gone": [snake(child)]},
+                "rule": effect["rule"],
+            },
+            given,
+        )
+
+    def invalid_values(self, entity) -> list[dict]:
+        """A missing required field, and a value outside its range: both 422."""
+        given, values = self._given(skip_target=True)
+        fields = self.api.get("request", {}).get("fields", {})
+        invalid = next(
+            (e for e in self.api.get("errors", []) if e["rule"] == "invalid-body"),
+            {"status": 422, "when": "invalid or missing fields"},
+        )
+        expect = {"status": invalid["status"], "problem": invalid["when"]}
+        cases = []
+        required = [name for name, d in fields.items() if d.get("required")]
+        if required:
+            body = self._body()
+            del body[required[0]]
+            cases.append(
+                {
+                    "name": f"{required[0]} is required",
+                    "request": self._request(values, body),
+                    "expect": dict(expect),
+                    "rule": "invalid-body",
+                }
+            )
+        for name, detail in fields.items():
+            if "max" in detail or "min" in detail:
+                body = self._body()
+                if "max" in detail:
+                    body[name] = detail["max"] + 1
+                    name_text = f"{name} above {detail['max']}"
+                else:
+                    body[name] = detail["min"] - 1
+                    name_text = f"{name} below {detail['min']}"
+                cases.append(
+                    {
+                        "name": f"{name_text} is invalid",
+                        "request": self._request(values, body),
+                        "expect": dict(expect),
+                        "rule": "invalid-body",
+                    }
+                )
+                break
+        return [_with_given(c, given) for c in cases]
+
+
+def _with_given(case: dict, given: list[dict]) -> dict:
+    """`given` goes first in a case, and only when there is something to set up."""
+    # a copy per case, so the YAML has no shared &anchors a reader must follow
+    given = copy.deepcopy(given)
+    return {"name": case.pop("name"), **({"given": given} if given else {}), **case}
+
+
+def _example_detail(name: str, detail: dict, n: int):
+    if detail.get("type") == "id":
+        return n
+    return f"{name.replace('_', ' ').capitalize()} {n}"
 
 
 def spec_method(method: str) -> str:
@@ -420,7 +638,8 @@ def _field(domain, entity_name: str | None, attribute: str) -> dict:
     if entity is None:
         return {"type": "text"}
     if entity.lifecycle and attribute == entity.lifecycle.field:
-        return {"type": "text", "one_of": sorted(entity.lifecycle.states)}
+        states = sorted(entity.lifecycle.states)
+        return {"type": "text", "one_of": states, "initial": entity.lifecycle.initial}
     spec = entity.attributes[attribute]
     detail = {"type": spec.type}
     for flag in ("required", "unique", "generated"):
@@ -464,6 +683,12 @@ def _data(report: Report, spec, entity, association, persistence: str) -> dict |
         }
         if mapping.parent_key:
             result["parent_key"] = mapping.parent_key
+            parent = _parent(report.domain, entity)
+            parent_mapping = data.entities.get(parent) if parent else None
+            if parent_mapping is not None:
+                identifier = report.domain.entities[parent].identifier
+                result["parent_table"] = parent_mapping.table
+                result["parent_column"] = parent_mapping.column_of(identifier)
         return result
     mapping = data.relationships.get(spec.association)
     if mapping is None:
@@ -648,3 +873,309 @@ def _errors_by_status(errors: list[dict]) -> dict[int, list[str]]:
     for error in errors:
         grouped.setdefault(error["status"], []).append(error["when"])
     return grouped
+
+
+# ── Generation plan: which files a confirmed spec becomes ───────────
+# Only the spec (and the pack's layout) go in; the platform renders the
+# templates, writes the files and registers them.
+
+PYTHON_TYPES = {
+    "id": "int",
+    "text": "str",
+    "integer": "int",
+    "money": "Decimal",
+    "boolean": "bool",
+    "date": "date",
+    "datetime": "datetime",
+}
+SQL_TYPES = {
+    "id": "Integer",
+    "text": "String(200)",
+    "integer": "Integer",
+    "money": "Numeric(10, 2)",
+    "boolean": "Boolean",
+    "date": "Date",
+    "datetime": "DateTime(timezone=True)",
+}
+GENERATED_KINDS = ("create",)  # S5; the other kinds come in S6
+
+
+def generation_plan(spec: dict, pack, templates: dict[str, Path]) -> dict:
+    """The files to write for a confirmed spec, with their template and values.
+
+    templates: folders of templates by owner: factory, source, pack.
+    Returns {"files": [...], "register": {"routers": [...], "models": [...]}}.
+    """
+    if spec["kind"] not in GENERATED_KINDS:
+        raise ResolveError(
+            f"generating code for kind {spec['kind']} comes in S6; S5 generates "
+            f"{', '.join(GENERATED_KINDS)}"
+        )
+    layout, imports = pack.manifest.layout, pack.manifest.imports
+    api, data = spec["api"], spec["data"]
+    entity, service = spec["target"], spec["service"]["name"]
+    module = snake(entity)
+    mod = {
+        key: _module(getattr(layout, key)) for key in ("models", "schemas", "repositories", "api")
+    }
+    mod["rules"], mod["problems"] = _module(layout.rules), _module(layout.problems)
+    base_module, base_name = imports["base"].split(":")
+    session_module, session_name = imports["session"].split(":")
+
+    response_fields = api["response"]["fields"]
+    request_fields = api["request"]["fields"]
+    unique = [n for n, d in request_fields.items() if d.get("unique")]
+    statuses = {e["rule"]: e["status"] for e in api.get("errors", [])}
+    parent = None
+    if spec.get("parent") and data.get("parent_key"):
+        param = next(n for n, d in api["path_params"].items() if d["refers_to"] == spec["parent"])
+        parent = {
+            "entity": spec["parent"],
+            "module": snake(spec["parent"]),
+            "param": param,
+            "key": data["parent_key"],
+        }
+    identifier = next(
+        (n for n, d in response_fields.items() if d.get("type") == "id" and d.get("generated")),
+        "id",
+    )
+    shared = {
+        "service": service,
+        "task": spec["task"],
+        "entity": entity,
+        "module": module,
+        "request_class": entity + REQUEST_SUFFIX[spec["kind"]],
+        "parent": parent,
+        "unique": unique,
+        "models_module": mod["models"],
+        "schemas_module": mod["schemas"],
+        "repositories_module": mod["repositories"],
+        "rules_module": mod["rules"],
+        "problems_module": mod["problems"],
+    }
+    schema_imports, request_list = _pydantic(request_fields)
+    response_imports, response_list = _pydantic(response_fields, response=True)
+    stdlib_imports, sqlalchemy_import, columns = _columns(data, response_fields, parent)
+    app_imports = [
+        f"from {mod['models']}.{module} import {entity} as {entity}Row",
+        f"from {session_module} import {session_name}",
+    ]
+    if parent:
+        app_imports.append(
+            f"from {mod['models']}.{parent['module']} import {parent['entity']} as "
+            f"{parent['entity']}Row"
+        )
+
+    files = [
+        _file(
+            templates["factory"] / "schemas.py.j2",
+            f"{layout.schemas}/{service}.py",
+            shared
+            | {
+                "schema_imports": sorted(set(schema_imports + response_imports)),
+                "request_fields": request_list,
+                "response_fields": response_list,
+            },
+        ),
+        _file(
+            templates["source"] / "repository.py.j2",
+            f"{layout.repositories}/{service}.py",
+            shared | {"session_name": session_name, "app_imports": sorted(app_imports)},
+        ),
+        _file(
+            templates["factory"] / "route_create.py.j2",
+            f"{layout.api}/{service}.py",
+            shared
+            | {
+                "method": api["method"],
+                "path": api["path"],
+                "status": api["response"]["status"],
+                "path_params": list(api.get("path_params", {})),
+                "tag": plural(module),
+                "location": api["path"] + "/{row." + identifier + "}",
+                "not_found": statuses.get("not-found", 404),
+                "conflict": statuses.get("unique-taken", 409),
+            },
+        ),
+        _file(
+            templates["factory"] / "rules.py.j2",
+            f"{layout.rules}/{service}.py",
+            shared,
+            owner="you",
+        ),
+        _file(
+            templates["factory"] / "problems.py.j2",
+            layout.problems,
+            shared | {"invalid": statuses.get("invalid-body", 422)},
+            owner="shared",
+        ),
+        _file(
+            templates["pack"] / "test_api.py.j2",
+            f"{layout.tests}/test_{service}.py",
+            shared | _test_context(spec, pack),
+            kind="test",
+        ),
+    ]
+    model = _file(
+        templates["source"] / "model.py.j2",
+        f"{layout.models}/{module}.py",
+        shared
+        | {
+            "table": data["table"],
+            "columns": columns,
+            "stdlib_imports": stdlib_imports,
+            "sqlalchemy_import": sqlalchemy_import,
+            "base_module": base_module,
+            "base_name": base_name,
+        },
+        kind="model",
+    )
+    files.insert(0, model)
+    for package in (layout.schemas, layout.repositories, layout.rules):
+        files.append(
+            {
+                "template": None,
+                "target": f"{package}/__init__.py",
+                "context": {},
+                "owner": "shared",
+                "kind": "package",
+            }
+        )
+    api_module = service
+    return {
+        "files": files,
+        "register": {
+            "routers": [
+                f"from {mod['problems']} import install as install_problems",
+                "install_problems(application)",
+                f"from {mod['api']} import {api_module}",
+                f"application.include_router({api_module}.router)",
+            ],
+            "models": [f"from {mod['models']}.{module} import {entity}  # noqa: F401"],
+        },
+    }
+
+
+def _file(template, target, context, owner="harness", kind="code") -> dict:
+    return {
+        "template": template,
+        "target": target,
+        "context": context,
+        "owner": owner,
+        "kind": kind,
+    }
+
+
+def _module(path: str) -> str:
+    return path.removesuffix(".py").replace("/", ".")
+
+
+def _pydantic(fields: dict, response: bool = False) -> tuple[list[str], list[dict]]:
+    imports, out = [], []
+    for name, detail in fields.items():
+        python = PYTHON_TYPES.get(detail.get("type", "text"), "str")
+        if python == "Decimal":
+            imports.append("from decimal import Decimal")
+        elif python in ("date", "datetime"):
+            imports.append(f"from datetime import {python}")
+        if "one_of" in detail:
+            choices = ", ".join(repr(c) for c in detail["one_of"])
+            imports.append("from typing import Literal")
+            python = f"Literal[{choices}]"
+        constraints = []
+        if "min" in detail:
+            constraints.append(f"ge={detail['min']}")
+        if "max" in detail:
+            constraints.append(f"le={detail['max']}")
+        required = detail.get("required") or (response and detail.get("generated"))
+        if required:
+            annotation, default = (
+                python,
+                (f" = Field({', '.join(constraints)})" if constraints else ""),
+            )
+        else:
+            annotation = f"{python} | None"
+            default = (
+                f" = Field(default=None, {', '.join(constraints)})" if constraints else " = None"
+            )
+        out.append({"name": name, "annotation": annotation, "default": default})
+    return imports, out
+
+
+def _columns(data: dict, fields: dict, parent: dict | None) -> tuple[list[str], str, list[dict]]:
+    sql, python, columns = set(), set(), []
+    for attribute, column in data["columns"].items():
+        detail = fields.get(attribute, {"type": "text"})
+        kind = detail.get("type", "text")
+        sql_type = SQL_TYPES.get(kind, "String(200)")
+        sql.add(sql_type.split("(")[0])
+        py = PYTHON_TYPES.get(kind, "str")
+        if py == "Decimal":
+            python.add("from decimal import Decimal")
+        elif py in ("date", "datetime"):
+            python.add(f"from datetime import {py}")
+        args = [f'"{column}"'] if column != attribute else []
+        args.append(sql_type)
+        primary = kind == "id" and detail.get("generated")
+        if primary:
+            args.append("primary_key=True")
+        required = primary or detail.get("required")
+        if detail.get("unique"):
+            args.append("unique=True")
+        if "initial" in detail:
+            args.append(f'default="{detail["initial"]}"')
+            required = True
+        if not required:
+            py = f"{py} | None"
+        columns.append({"attribute": attribute, "python": py, "args": ", ".join(args)})
+    if parent is not None:
+        sql.update({"ForeignKey", "Integer"})
+        target = f"{data['parent_table']}.{data['parent_column']}"
+        columns.append(
+            {
+                "attribute": parent["key"],
+                "python": "int",
+                "args": f'Integer, ForeignKey("{target}"), nullable=False',
+            }
+        )
+    return sorted(python), f"from sqlalchemy import {', '.join(sorted(sql))}", columns
+
+
+def _test_context(spec: dict, pack) -> dict:
+    parent_key = (spec.get("data") or {}).get("parent_key")
+    cases = []
+    for case in spec.get("tests", []):
+        request, expect = case["request"], case["expect"]
+        given = []
+        for step in case.get("given", []):
+            parents = f", {parent_key}={step['within']}.id" if step.get("within") else ""
+            given.append(
+                {
+                    "alias": step["as"],
+                    "entity": step["create"],
+                    "module": snake(step["create"]),
+                    "fields": repr(step.get("with", {})),
+                    "parents": parents,
+                }
+            )
+        cases.append(
+            {
+                "slug": re.sub(r"[^a-z0-9]+", "_", case["name"].lower()).strip("_"),
+                "name": case["name"],
+                "rule": case.get("rule", ""),
+                "given": given,
+                "method": request["method"].lower(),
+                # an f-string only when the path uses a `given` value
+                "path": ("f" if "{" in request["path"] else "") + f'"{request["path"]}"',
+                "json": f", json={request['body']!r}" if "body" in request else "",
+                "status": expect["status"],
+                "headers": expect.get("headers", []),
+                "body": [(k, repr(v)) for k, v in expect.get("body", {}).items()],
+                "problem": repr(expect["problem"]) if "problem" in expect else None,
+            }
+        )
+    return {
+        "cases": cases,
+        "client": pack.manifest.fixtures.get("client", "client"),
+        "session": pack.manifest.fixtures.get("session", "session"),
+    }

@@ -49,10 +49,49 @@ components:
 - name: cascade_children
   rule: composition-cascade
 tests:
-- deletes a Book → 204
-- no Book has this book_id → 404
-- 'after the delete: its Reviews are deleted with it'
-- 'after the delete: its collection_books links are removed; the other side stays'
+- name: deletes a Book
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  request:
+    method: DELETE
+    path: /books/{book.id}
+  expect:
+    status: 204
+  rule: kind delete
+- name: no Book has this book_id
+  request:
+    method: DELETE
+    path: /books/999999
+  expect:
+    status: 404
+    problem: no Book has this book_id
+  rule: not-found
+- name: 'after the delete: its Reviews are deleted with it'
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  - create: Review
+    as: review
+    with:
+      rating: 1
+    within: book
+  request:
+    method: DELETE
+    path: /books/{book.id}
+  expect:
+    status: 204
+    gone:
+    - review
+  rule: composition-cascade
 open_questions: []
 sources:
   api.method: kind delete
@@ -61,5 +100,6 @@ sources:
   api.response.status: kind delete
   api.response.shape: rule no-content
   data: data.yaml
-  tests: 'derived from the design: one success case, one per error'
+  tests: 'derived from the design and domain.yaml: a success case, one per error, invalid values; example
+    values by rule'
   service.name: 'rule: kind delete names services remove_{entity}'

@@ -9,7 +9,9 @@ factory's design code (factory.yaml › design), then save the run:
     └── trace.jsonl    every decision, from classification to design
 """
 
+import hashlib
 import importlib.util
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -17,7 +19,7 @@ from types import ModuleType
 from typing import Literal
 
 import yaml
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from harness.classify.walk import classify
 from harness.knowledge.schema import KebabName, Model, Text
@@ -51,8 +53,10 @@ class Spec(Model):
     data: dict[str, object] | None = None
     delete_effects: list[dict[str, object]] = Field(default_factory=list)
     components: list[dict[str, object]] = Field(default_factory=list)
-    tests: list[Text] = Field(default_factory=list)
+    tests: list[dict[str, object]] = Field(default_factory=list)
     open_questions: list[Text] = Field(default_factory=list)
+    answers: dict[str, Text] = Field(default_factory=dict)  # your answers, kept as a record
+    confirmed_at: Text | None = None
     sources: dict[str, Text] = Field(default_factory=dict)
 
 
@@ -152,3 +156,98 @@ OPENAPI_HEADER = "# Generated from spec.yaml. Do not edit: change the spec inste
 
 def _yaml(data: dict, header: str) -> str:
     return header + yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=100)
+
+
+# ── Confirming a spec ───────────────────────────────────────────────
+
+CONFIRMED = ".confirmed"  # in the run folder: the hash of the spec you approved
+
+
+def find_run(report: Report, run_id: str) -> Path:
+    runs = report.root / report.settings.knowledge / "runs"
+    folder = runs / run_id
+    if not (folder / "spec.yaml").is_file():
+        known = ", ".join(sorted(p.name for p in runs.glob("*") if p.is_dir())) or "none"
+        raise ResolveError(f"no run '{run_id}' (runs: {known})")
+    return folder
+
+
+def read_spec(folder: Path) -> dict:
+    return yaml.safe_load((folder / "spec.yaml").read_text())
+
+
+def spec_problems(report: Report, spec: dict) -> list[str]:
+    """What stops a spec from being confirmed (and generated from)."""
+    try:
+        Spec.model_validate(spec)
+    except ValidationError as exc:
+        return [f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in exc.errors()]
+    problems = [f"open question: {q}" for q in spec.get("open_questions", [])]
+    api = spec["api"]
+    for where, text in (("service.name", spec["service"]["name"]), ("api.path", api["path"])):
+        for placeholder in re.findall(r"<\w+>", str(text)):
+            problems.append(f"{where} still has {placeholder}; replace it with the real word")
+    for param in api.get("path_params", {}):
+        if f"{{{param}}}" not in api["path"]:
+            problems.append(f"api.path_params.{param} is not in the path {api['path']}")
+    entity = report.domain.entities.get(spec.get("target") or "")
+    if entity is not None:
+        known = set(entity.attributes) | ({entity.lifecycle.field} if entity.lifecycle else set())
+        for name in api.get("request", {}).get("fields", {}):
+            if name not in known and not name.endswith("_id"):
+                problems.append(
+                    f"api.request.fields.{name} is not an attribute of {spec['target']}"
+                )
+    for index, case in enumerate(spec.get("tests", [])):
+        for key in ("name", "request", "expect"):
+            if key not in case:
+                problems.append(f"tests.{index} has no '{key}'")
+    return problems
+
+
+def confirm(report: Report, folder: Path, approve: bool) -> dict:
+    """Approve (after checking it again) or reject a spec; approving regenerates openapi.yaml."""
+    spec = read_spec(folder)
+    if not approve:
+        spec["status"] = "rejected"
+        (folder / "spec.yaml").write_text(_yaml(spec, SPEC_HEADER))
+        return spec
+    problems = spec_problems(report, spec)
+    if problems:
+        raise ResolveError(
+            "the spec can't be confirmed yet:\n  - "
+            + "\n  - ".join(problems)
+            + "\nEdit spec.yaml (record answers under `answers:` and remove the questions), "
+            "then confirm again."
+        )
+    spec["status"] = "confirmed"
+    spec["confirmed_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+    text = _yaml(spec, SPEC_HEADER)
+    (folder / "spec.yaml").write_text(text)
+    factory = report.factories[spec["factory"]]
+    (folder / "openapi.yaml").write_text(
+        _yaml(factory_design(factory).to_openapi(spec), OPENAPI_HEADER)
+    )
+    (folder / CONFIRMED).write_text(spec_hash(text) + "\n")
+    return spec
+
+
+def spec_hash(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode()).hexdigest()
+
+
+def confirmed_spec(report: Report, folder: Path) -> tuple[dict, str]:
+    """The confirmed spec and its hash; refuses a spec changed after you confirmed it."""
+    text = (folder / "spec.yaml").read_text()
+    spec = yaml.safe_load(text)
+    marker = folder / CONFIRMED
+    if spec.get("status") != "confirmed" or not marker.is_file():
+        raise ResolveError(
+            f"run {folder.name} is not confirmed: run `harness confirm {folder.name}`"
+        )
+    digest = spec_hash(text)
+    if marker.read_text().strip() != digest:
+        raise ResolveError(
+            f"spec.yaml of run {folder.name} changed after it was confirmed; confirm it again"
+        )
+    return spec, digest

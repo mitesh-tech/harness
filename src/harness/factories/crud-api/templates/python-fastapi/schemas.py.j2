@@ -1,0 +1,22 @@
+{{ header }}
+"""Request and response shapes of {{ entity }}, from the spec."""
+{% for line in schema_imports %}
+{{ line }}
+{%- endfor %}
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class {{ request_class }}(BaseModel):
+    """What a client sends to {{ service }}."""
+
+{% for f in request_fields %}    {{ f.name }}: {{ f.annotation }}{{ f.default }}
+{% endfor %}
+
+class {{ entity }}(BaseModel):
+    """{{ entity }} as the API returns it."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+{% for f in response_fields %}    {{ f.name }}: {{ f.annotation }}{{ f.default }}
+{% endfor %}

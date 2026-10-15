@@ -113,15 +113,20 @@ def validate_project(
     names = settings.factories if settings.factories is not None else list(installed_factories())
     report.checked[-1].summary = f"pack {settings.pack}, factories: {', '.join(names) or 'none'}"
     _check_version(report, project_file, settings.harness)
-    report.problems.append(
-        Problem(
-            project_file,
-            ("pack",),
-            f"pack '{settings.pack}' is not installed yet; it is needed to generate code",
-            _line(project_file, ("pack",)),
-            "warning",
+    from harness.packs import installed_packs
+
+    packs = installed_packs()
+    if settings.pack not in packs:
+        report.problems.append(
+            Problem(
+                project_file,
+                ("pack",),
+                f"pack '{settings.pack}' is not installed (installed: {', '.join(packs)}); "
+                "it is needed to generate code",
+                _line(project_file, ("pack",)),
+                "warning",
+            )
         )
-    )
 
     knowledge_dir = report.root / settings.knowledge
     if not knowledge_dir.is_dir():

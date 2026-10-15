@@ -61,6 +61,8 @@ data:
     comment: comment
   operation: update_row
   parent_key: book_id
+  parent_table: books
+  parent_column: id
 components:
 - name: serialization
   rule: always-serialize
@@ -71,10 +73,56 @@ components:
 - name: parent_exists_check
   rule: composition-nested
 tests:
-- changes a Review → 200
-- no Book has this book_id → 404
-- no Review has this review_id → 404
-- invalid or missing fields → 422
+- name: changes a Review
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  - create: Review
+    as: review
+    with:
+      rating: 1
+    within: book
+  request:
+    method: PATCH
+    path: /books/{book.id}/reviews/{review.id}
+    body:
+      rating: 1
+  expect:
+    status: 200
+    body:
+      rating: 1
+  rule: kind change
+- name: no Book has this book_id
+  request:
+    method: PATCH
+    path: /books/999999/reviews/{review.id}
+    body:
+      rating: 1
+  expect:
+    status: 404
+    problem: no Book has this book_id
+  rule: not-found
+- name: no Review has this review_id
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  request:
+    method: PATCH
+    path: /books/{book.id}/reviews/999999
+    body:
+      rating: 1
+  expect:
+    status: 404
+    problem: no Review has this review_id
+  rule: not-found
 open_questions:
 - Does the task change the comment of a Review? (SemIf 0.32)
 sources:
@@ -87,6 +135,7 @@ sources:
   api.response.shape: rule item-response
   api.response.fields: rule item-response
   data: data.yaml
-  tests: 'derived from the design: one success case, one per error'
+  tests: 'derived from the design and domain.yaml: a success case, one per error, invalid values; example
+    values by rule'
   service.name: 'rule: kind change names services change_{entity}_{attribute}'
   details: SemIf yes/no questions about the task

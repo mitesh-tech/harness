@@ -289,6 +289,46 @@ The decisions behind every API this factory designs (stage S4). The choices mark
 | I24 | `harness override SECTION.NAME` starts an override from the factory's entry |
 | I25 | `harness: "<range>"` in `harness.yaml` pins the harness versions a project works with |
 
+## Generating the code
+
+From a confirmed spec only, tests first:
+
+```
+harness confirm <run> --approve      re-check the spec; record its hash
+harness generate <run>               tests (must fail) → code (must pass), in a git worktree
+```
+
+| Generated | Template | Owner |
+|---|---|---|
+| `tests/test_<service>.py` | `packs/python-fastapi/templates/test_api.py.j2`, from the spec's `tests` only | harness |
+| `app/models/<entity>.py` (new tables only) | `datasources/relational/templates/python-fastapi/model.py.j2` | harness |
+| `app/repositories/<service>.py` | `datasources/relational/templates/python-fastapi/repository.py.j2` | harness |
+| `app/schemas/<service>.py`, `app/api/<service>.py` | `factories/crud-api/templates/python-fastapi/` | harness |
+| `app/problems.py` | errors as `application/problem+json`, written once | shared |
+| `app/rules/<service>.py` | the business-rules hook, written once | **you** |
+
+- **Tests** are black-box: HTTP requests through the project's `client` fixture; `given` rows are set up through its `session` fixture. They never import the code under test.
+- **Registration:** lines between `# harness ↓` / `# harness ↑` in `app/main.py` (routers) and `app/models/__init__.py` (models). Without the markers, generation stops and shows the lines to add.
+- **Hand-written code** is never edited (apart from the marked lines). A hand-written model is reused only if it has every column `data.yaml` maps.
+- **Every generated file** starts with a header naming its run and spec hash, and is recorded in `.harness/generated.yaml`; regenerating overwrites a file only if its hash still matches.
+- **Files per service** (route, schemas, repository), so new services add files instead of merging into generated ones; the model is per entity.
+
+### Decisions (S5)
+
+| # | Decision |
+|---|---|
+| K1 | Two PRs: S5a (confirm, pack, templates, generate) and S5b (verify, report, `harness run`) |
+| K2 | Confirm by editing `spec.yaml` and `harness confirm --approve`, which re-checks; no open questions or `<placeholders>` may remain; answers kept under `answers:` |
+| K3 | Templates are factory × pack and source type × pack; the pack holds layout, imports, markers and commands |
+| K4, K13 | Generated for create (flat and nested): model (new tables), repository, schemas, route, rules hook, registration; other kinds in S6 |
+| K5, K6 | Hand-written code is never edited, except between markers; a hand-written model must match `data.yaml` |
+| K7 | Tables come from the app's own `create_all`; migrations later |
+| K8 | A git worktree on `harness/<run>-<service>` by default, committed when the tests pass; `--in-place` as the alternative |
+| K9 | Header with run and spec hash; `.harness/generated.yaml` |
+| K14 | No LLM: business rules go in the hook |
+| K15 | The spec's `tests` are structured cases (`given`, `request`, `expect` with status, headers, body, problem title) with example values by rule |
+| K16, K17 | Tests are generated first, from the confirmed spec only, and must fail before the code and pass after |
+
 ## Outcomes
 
 | Outcome | Meaning | Next |

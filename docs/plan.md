@@ -39,6 +39,7 @@ The first factory is the [CRUD API factory](factories/crud-api.md). See [archite
 | Data layer (S3) | Done |
 | API anatomy (S4a) | Done |
 | Spec and OpenAPI in the run folder (S4b) | Done |
+| Confirm and generate, tests first (S5a) | Done |
 | Resolve, spec, generation, verification, learning | Planned below |
 
 ## Stages
@@ -55,7 +56,8 @@ Each stage is one or two pull requests, ends with something you can run, and sta
 | **S3: Data layer** | `.harness/data.yaml` (sources, entities → tables and columns, relationships, written out in full); **relational** source-type plugin (capabilities, converters, introspection); checks in Python and Prolog; classification step `data` → `NO_MAPPING` | `harness validate --introspect` |
 | **S4a: API anatomy** | Prolog anatomy rules (paths, parameters, body, response, errors) with conventions as overridable settings; list summaries; dependents and delete policy (`on_delete`); auth and caching out of the CRUD factory; `remove_rules`, per-service paths, `harness override`, version pin | `harness resolve --service add_review` |
 | **S4b: Spec** | `spec.yaml` + `openapi.yaml` in the run folder; resolving a classified task; SemIf yes/no questions for new-service details; open questions; resolve events in the trace | `harness resolve "…"` |
-| **S5: Confirm, generate, verify, report (create)** | Confirm the spec (approve, edit and re-check, reject); FastAPI templates (route, schemas, repository interface, relational adapter, tests); router registration; git worktree; verification against the spec; report | `harness run "Let staff add a new publisher"` |
+| **S5a: Confirm and generate (create)** | Structured test cases in the spec; `harness confirm`; the python-fastapi pack; templates; tests generated first from the spec (must fail), then code (must pass); markers, header, registry; git worktree | `harness generate <run>` |
+| **S5b: Verify and report** | Lint, contract (the app's OpenAPI against the spec's), scope, untouched generated files; `report.md`; `harness run "…"` from task to merged-ready branch | `harness run "Let staff add a new publisher"` |
 | **S6: All CRUD kinds** | read one, list (filters are response fields, paging), update, replace, transition (guarded by the lifecycle), delete; link and unlink for connections; nested APIs for composition | `harness run` for any CRUD task |
 | **S7: Domain-model factory** | Its manifest is already installed as planned (`available: false`), so the router sends domain changes there instead of to CRUD. A second factory for changes to the domain itself: add or remove an attribute, add an entity or a relationship. Drafts the domain change for your approval; impact analysis (including dependents); then the CRUD factory updates mapping, schemas, APIs and tests together | `harness run "Add an isbn field to books"` |
 | **S8: Learn and evals** | New services and attributes saved to the knowledge base after approval; eval cases; `harness eval` over traces: accuracy per step, path accuracy, calibration, consistency across paraphrases, SemIf calls and time | Track classification accuracy and behaviour |

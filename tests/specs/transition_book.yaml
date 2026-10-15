@@ -37,6 +37,7 @@ api:
         one_of:
         - active
         - archived
+        initial: active
   errors:
   - status: 404
     when: no Book has this book_id
@@ -64,9 +65,28 @@ components:
 - name: transition_guard
   rule: transition-guard
 tests:
-- moves a Book to another stage → 200
-- no Book has this book_id → 404
-- Book can't move from its current stage to that one → 409
+- name: moves a Book to another stage
+  given:
+  - create: Book
+    as: book
+    with:
+      title: Title 1
+      author: Author 1
+      price: 9.99
+  request:
+    method: PATCH
+    path: /books/{book.id}/<verb>
+  expect:
+    status: 200
+  rule: kind transition
+- name: no Book has this book_id
+  request:
+    method: PATCH
+    path: /books/999999/<verb>
+  expect:
+    status: 404
+    problem: no Book has this book_id
+  rule: not-found
 sources:
   api.method: kind transition
   api.path: rule transition-verb-in-path
@@ -75,7 +95,8 @@ sources:
   api.response.shape: rule item-response
   api.response.fields: rule item-response
   data: data.yaml
-  tests: 'derived from the design: one success case, one per error'
+  tests: 'derived from the design and domain.yaml: a success case, one per error, invalid values; example
+    values by rule'
   service.name: open question
   details: SemIf yes/no questions about the task
 open_questions:

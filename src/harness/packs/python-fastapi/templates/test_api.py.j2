@@ -1,0 +1,42 @@
+{{ header }}
+"""Tests for {{ service }}, generated from the confirmed spec before its code.
+
+Black-box: each test sends HTTP requests only. `given` data is set up through
+the database session, so the tests don't depend on the code under test.
+"""
+
+import importlib
+
+import pytest
+
+
+def create(session, entity: str, module: str, values: dict, **parents):
+    """Set up a row the test needs (the spec's `given`)."""
+    model = getattr(importlib.import_module(f"{{ models_module }}.{module}"), entity)
+    row = model(**values, **parents)
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+def same(actual, expected) -> bool:
+    if isinstance(expected, float):
+        return float(actual) == pytest.approx(expected)
+    return actual == expected
+{% for case in cases %}
+
+def test_{{ case.slug }}({{ client }}, {{ session }}):
+    """{{ case.name }} ({{ case.rule }})"""
+{% for g in case.given %}    {{ g.alias }} = create(
+        {{ session }}, "{{ g.entity }}", "{{ g.module }}", {{ g.fields }}{{ g.parents }}
+    )
+{% endfor %}    response = {{ client }}.{{ case.method }}(
+        {{ case.path }}{{ case.json }}
+    )
+    assert response.status_code == {{ case.status }}, response.text
+{% for h in case.headers %}    assert "{{ h }}" in response.headers
+{% endfor %}{% for key, value in case.body %}    assert same(response.json()["{{ key }}"], {{ value }})
+{% endfor %}{% if case.problem %}    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.json()["title"] == {{ case.problem }}
+{% endif %}{% endfor %}

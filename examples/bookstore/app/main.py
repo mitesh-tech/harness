@@ -26,6 +26,8 @@ def create_app(url: str | None = None) -> FastAPI:
     )
 
     application.include_router(health.router)
+    # harness ↓ (generated lines; keep these markers)
+    # harness ↑
     return application
 
 
